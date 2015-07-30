@@ -25,6 +25,8 @@ Our website: http://visorapp.de/
 
 ## Android version
 
+![Screenshot of the current android version](https://christian-illies.info/upload/visor-android-Screenshot.png)
+
 This is the offical android version of the visor app - the low vision magnifier.
 
 ## Changelog
