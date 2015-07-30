@@ -215,8 +215,5 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         }
 
         mCamera.setParameters(parameters);
-
-
-        mCamera.setParameters(parameters);
     }
 }
