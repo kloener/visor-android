@@ -25,11 +25,18 @@ Our website: http://visorapp.de/
 
 ## Android version
 
-![Screenshot of the current android version](https://christian-illies.info/upload/visor-android-Screenshot.png)
+![Screenshot of the current android version](https://christian-illies.info/upload/150801-visor-android-Screenshot.png)
 
 This is the offical android version of the visor app - the low vision magnifier.
 
 ## Changelog
+
+Version 0.2 (2015-08-01)
+
+- add app icon
+- replaced button with rounded image buttons
+- fixed some issues for devices that don't support color effects on the camera preview (i.e. Nexus 10).
+- using a relative layout which fits to all kinds of devices.
 
 Version 0.1 (2015-07-30)
 
@@ -44,7 +51,6 @@ Version 0.1 (2015-07-30)
 - add custom color modes: black on white with enhanced contrast,
   white on black, yellow on blue and blue on yellow.
 - add original colored buttons from the iOS app
-- add app icon
 - add voice-over support
 - add support for at least two languages (GER and EN)
 - add mirroring via chromecast, dlna or airplay
