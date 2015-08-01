@@ -204,6 +204,12 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         Camera.Parameters parameters = mCamera.getParameters();
 
         final String currentEffect = parameters.getColorEffect();
+
+        if(currentEffect == null) {
+            Log.d(TAG, "Warning! Could not receive current color effect. Cannot change the color effect.");
+            return;
+        }
+
         Log.d(TAG, parameters.getSupportedColorEffects().toString());
 
         switch(currentEffect) {
