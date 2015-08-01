@@ -204,6 +204,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         Camera.Parameters parameters = mCamera.getParameters();
 
         final String currentEffect = parameters.getColorEffect();
+        Log.d(TAG, parameters.getSupportedColorEffects().toString());
+
         switch(currentEffect) {
             case Camera.Parameters.EFFECT_MONO: parameters.setColorEffect(Camera.Parameters.EFFECT_NEGATIVE); break;
             case Camera.Parameters.EFFECT_NEGATIVE: parameters.setColorEffect(Camera.Parameters.EFFECT_AQUA); break;
