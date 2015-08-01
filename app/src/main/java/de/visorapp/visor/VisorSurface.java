@@ -12,14 +12,16 @@ import java.io.IOException;
 /**
  * Created by root on 29.07.15.
  */
-public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback {
+public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback, Camera.PreviewCallback {
+
     private static final String TAG = "VisorSurface";
+    private static final int mCameraZoomSteps = 4;
+
     private SurfaceHolder mHolder;
     private Camera mCamera;
     private int mCameraCurrentZoomLevel;
     private boolean mCameraFlashMode;
     private int mCameraMaxZoomLevel;
-    final private int mCameraZoomSteps = 4;
     private boolean mCameraPreviewIsRunning;
 
     public VisorSurface(Context context, Camera camera) {
@@ -28,7 +30,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         Log.d(TAG, "VisorSurface instantiated");
 
         mCameraCurrentZoomLevel = 0;
-        mCameraFlashMode = false;
+        mCameraMaxZoomLevel     = 0;
+        mCameraFlashMode        = false;
         mCameraPreviewIsRunning = false;
 
         mCamera = camera;
@@ -39,10 +42,25 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     }
     public void surfaceCreated(SurfaceHolder holder) {
         Log.d(TAG, "called surfaceCreated");
+        if(mCameraPreviewIsRunning == true) return;
+
+        Camera.Parameters parameters = mCamera.getParameters();
+        if(parameters.isZoomSupported()) mCameraMaxZoomLevel = parameters.getMaxZoom();
+
+        // init zoom level
+        mCameraCurrentZoomLevel = mCameraMaxZoomLevel;
+        nextZoomLevel();
+
         // The Surface has been created, now tell the camera where to draw the preview.
         try {
             mCamera.setPreviewDisplay(holder);
+
+            // mCamera.setOneShotPreviewCallback(this);
+            // mCamera.setPreviewCallbackWithBuffer(this);
+
             mCamera.startPreview();
+            mCamera.setPreviewCallback(this);
+
             mCameraPreviewIsRunning = true;
         } catch (IOException e) {
             Log.d(TAG, "Error setting camera preview: " + e.getMessage());
@@ -52,46 +70,22 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
 
     public void surfaceDestroyed(SurfaceHolder holder) {
         Log.d(TAG, "called surfaceDestroyed");
-        // empty. Take care of releasing the Camera preview in your activity.
+        synchronized (this) {
+            try {
+                if (mCamera != null) {
+                    mCamera.stopPreview();
+                    mCamera.setPreviewCallback(null);
+                    mCameraPreviewIsRunning = false;
+                    mCamera.release();
+                }
+            } catch (Exception e) {
+                Log.e(TAG, e.getMessage());
+            }
+        }
     }
 
     public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
         Log.d(TAG, "called surfaceChanged");
-        // If your preview can change or rotate, take care of those events here.
-        // Make sure to stop the preview before resizing or reformatting it.
-
-        if (mHolder.getSurface() == null){
-            // preview surface does not exist
-            return;
-        }
-
-        // stop preview before making changes
-        try {
-            mCamera.stopPreview();
-            mCameraPreviewIsRunning = false;
-        } catch (Exception e){
-            // ignore: tried to stop a non-existent preview
-        }
-
-        // set preview size and make any resize, rotate or
-        // reformatting changes here
-
-        Camera.Parameters parameters = mCamera.getParameters();
-        mCameraMaxZoomLevel = parameters.getMaxZoom();
-
-        // init zoom level
-        mCameraCurrentZoomLevel = mCameraMaxZoomLevel;
-        nextZoomLevel();
-
-        // start preview with new settings
-        try {
-            mCamera.setPreviewDisplay(mHolder);
-            mCamera.startPreview();
-            mCameraPreviewIsRunning = true;
-        } catch (Exception e){
-            Log.d(TAG, "Error starting camera preview: " + e.getMessage());
-            mCameraPreviewIsRunning = false;
-        }
     }
 
     /**
@@ -167,7 +161,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     public void nextZoomLevel() {
         if(mCameraPreviewIsRunning == false) return;
 
-        final int steps = (mCameraMaxZoomLevel/mCameraZoomSteps);
+        final int steps  = (mCameraMaxZoomLevel/mCameraZoomSteps);
         final int modulo = (mCameraMaxZoomLevel%mCameraZoomSteps);
 
         int nextLevel = mCameraCurrentZoomLevel+steps;
@@ -179,30 +173,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     }
 
     /**
-     * sets the camera level to the specified {zoomLevel}.
-     * It dependes on a valid {mCamera} object to receive
-     * the parameters and set it as well.
-     *
-     * @param zoomLevel the integer of the new zoomLevel you want to set. All integers above the maximum possible value will be set to maximum.
+     * change color modes if the camera preview if supported.
      */
-    private void setCameraZoomLevel(int zoomLevel) {
-        Camera.Parameters parameters = mCamera.getParameters();
-
-        if(zoomLevel > mCameraMaxZoomLevel) {
-            zoomLevel = mCameraMaxZoomLevel;
-        }
-        mCameraCurrentZoomLevel = zoomLevel;
-
-        Log.d(TAG, "Current zoom level is "+Integer.toString(zoomLevel));
-
-        parameters.setZoom(mCameraCurrentZoomLevel);
-        mCamera.setParameters(parameters);
-    }
-
     public void toggleColorMode() {
         if(mCameraPreviewIsRunning == false) return;
         Camera.Parameters parameters = mCamera.getParameters();
-
         final String currentEffect = parameters.getColorEffect();
 
         if(currentEffect == null) {
@@ -221,7 +196,43 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
             case Camera.Parameters.EFFECT_POSTERIZE: parameters.setColorEffect(Camera.Parameters.EFFECT_NONE); break;
             default: parameters.setColorEffect(Camera.Parameters.EFFECT_MONO);
         }
+        try {
+            mCamera.setParameters(parameters);
+        } catch(RuntimeException exception) {
+            Log.d(TAG, "could not apply the color effect. Your device does not support it.");
+        }
+    }
 
+    @Override
+    public void onPreviewFrame(byte[] data, Camera camera) {
+        if(mCameraPreviewIsRunning == false) return;
+        Log.d(TAG, "onPreviewFrame called");
+    }
+
+    /**
+     * sets the camera level to the specified {zoomLevel}.
+     * It dependes on a valid {mCamera} object to receive
+     * the parameters and set it as well.
+     *
+     * @param zoomLevel the integer of the new zoomLevel you want to set. All integers above the maximum possible value will be set to maximum.
+     */
+    private void setCameraZoomLevel(int zoomLevel) {
+        Camera.Parameters parameters = mCamera.getParameters();
+
+        if(!parameters.isZoomSupported()) {
+            Log.w(TAG, "Zoom is not supported on this device.");
+            return;
+        }
+
+        if(zoomLevel > mCameraMaxZoomLevel) {
+            zoomLevel = mCameraMaxZoomLevel;
+        }
+        mCameraCurrentZoomLevel = zoomLevel;
+
+        Log.d(TAG, "Current zoom level is "+Integer.toString(zoomLevel));
+
+        parameters.setZoom(mCameraCurrentZoomLevel);
         mCamera.setParameters(parameters);
     }
+
 }

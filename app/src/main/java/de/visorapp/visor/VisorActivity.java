@@ -16,6 +16,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.Toast;
 
 import java.io.File;
@@ -56,7 +57,6 @@ public class VisorActivity extends Activity {
     private static final String TAG = "VisorActivity";
     private static final int MEDIA_TYPE_IMAGE = 1;
 
-    private Camera mCamera;
     private VisorSurface mVisorView;
 
     public static Camera getCameraInstance(int cameraId) {
@@ -101,19 +101,19 @@ public class VisorActivity extends Activity {
 
         setContentView(R.layout.activity_visor);
 
-        mCamera = getCameraInstance();
-        if(mCamera == null) {
+        Camera camera = getCameraInstance();
+        if(camera == null) {
             Log.d(TAG, "Camera could not be opened! We have to abort.");
             abortAppWithMessage("Camera could not be opened! Please ensure to quit all other apps accessing the camera on your device.");
             return;
         }
-        mVisorView = new VisorSurface(this, mCamera);
+        mVisorView = new VisorSurface(this, camera);
 
         FrameLayout previewLayout = (FrameLayout) findViewById(R.id.camera_preview);
         previewLayout.addView(mVisorView);
 
         // Add a listener to the Zoom button
-        Button zoomButton = (Button) findViewById(R.id.button_zoom);
+        ImageButton zoomButton = (ImageButton) findViewById(R.id.button_zoom);
         zoomButton.setOnClickListener(
                 new View.OnClickListener() {
                     @Override
@@ -124,7 +124,7 @@ public class VisorActivity extends Activity {
         );
 
         // Add a listener to the Flash button
-        Button flashButton = (Button) findViewById(R.id.button_flash);
+        ImageButton flashButton = (ImageButton) findViewById(R.id.button_flash);
         flashButton.setOnClickListener(
                 new View.OnClickListener() {
                     @Override
@@ -135,7 +135,7 @@ public class VisorActivity extends Activity {
         );
 
         // Add a listener to the Flash button
-        Button colorButton = (Button) findViewById(R.id.button_color);
+        ImageButton colorButton = (ImageButton) findViewById(R.id.button_color);
         colorButton.setOnClickListener(
                 new View.OnClickListener() {
                     @Override

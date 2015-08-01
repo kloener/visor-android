@@ -4,4 +4,7 @@
     <string name="button_zoom_text">Zoom</string>
     <string name="button_color_text">Color</string>
     <string name="button_flash_text">Flash</string>
+    <string name="button_color_description">Change Contrast Mode</string>
+    <string name="button_zoom_description">Change Zoom Level</string>
+    <string name="button_flash_description">Toggle Flashlight</string>
 </resources>

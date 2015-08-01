@@ -1,34 +1,58 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="horizontal"
-    android:layout_width="fill_parent"
-    android:layout_height="fill_parent"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
     >
+
     <FrameLayout
         android:id="@+id/camera_preview"
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
-        android:layout_weight="1"
-        />
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_alignParentTop="true" />
 
-    <Button
-        android:id="@+id/button_color"
-        android:text="@string/button_color_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        />
-    <Button
-        android:id="@+id/button_zoom"
-        android:text="@string/button_zoom_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        />
-    <Button
+    <ImageButton
         android:id="@+id/button_flash"
-        android:text="@string/button_flash_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        />
-</LinearLayout>
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:layout_gravity="right|bottom"
+        android:src="@drawable/ic_flash_on_black_48dp"
+        android:scaleType="centerInside"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:background="@drawable/button_flash_round_corners"
+        android:contentDescription="@string/button_flash_description"
+        android:layout_below="@+id/button_zoom"
+        android:layout_alignRight="@+id/button_zoom"
+        android:layout_alignEnd="@+id/button_zoom"
+        android:elevation="8dp" />
+
+    <ImageButton
+        android:id="@+id/button_zoom"
+        android:layout_width="150dp"
+        android:layout_height="150dp"
+        android:layout_gravity="right|center_vertical"
+        android:src="@drawable/ic_add_black_48dp"
+        android:scaleType="centerInside"
+        android:background="@drawable/button_zoom_round_corners"
+        android:contentDescription="@string/button_zoom_description"
+        android:layout_centerVertical="true"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true"
+        android:elevation="16dp" />
+
+    <ImageButton
+        android:id="@+id/button_color"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:layout_gravity="right|top"
+        android:src="@drawable/ic_brightness_medium_black_48dp"
+        android:scaleType="centerInside"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:background="@drawable/button_color_round_corners"
+        android:contentDescription="@string/button_color_description"
+        android:layout_above="@+id/button_zoom"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true" />
+
+</RelativeLayout>
