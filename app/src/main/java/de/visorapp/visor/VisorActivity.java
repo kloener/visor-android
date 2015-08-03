@@ -1,35 +1,17 @@
 package de.visorapp.visor;
 
-import de.visorapp.visor.util.SystemUiHider;
-
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Context;
-import android.hardware.Camera;
-import android.hardware.camera2.CameraManager;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
-import android.os.Handler;
 import android.util.Log;
-import android.view.MotionEvent;
 import android.view.View;
-import android.widget.Button;
+import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-
 
 /**
- * An example full-screen activity that shows and hides the system UI (i.e.
- * status bar and navigation/system bar) with user interaction.
- *
- * @see SystemUiHider
  */
 public class VisorActivity extends Activity {
     /**
@@ -51,40 +33,51 @@ public class VisorActivity extends Activity {
     private static final boolean TOGGLE_ON_CLICK = false;
 
     /**
-     * The flags to pass to {@link SystemUiHider#getInstance}.
+     * Tag name for the Log message.
      */
-    private static final int HIDER_FLAGS = SystemUiHider.FLAG_HIDE_NAVIGATION;
     private static final String TAG = "VisorActivity";
-    private static final int MEDIA_TYPE_IMAGE = 1;
 
+    /**
+     * our surface view containing the camera preview image.
+     */
     private VisorSurface mVisorView;
 
-    public static Camera getCameraInstance(int cameraId) {
-        Camera c = null;
+    /**
+     * stores the brightness level of the screen to restore it after the
+     * app gets paused or destroyed.
+     */
+    private float prevScreenBrightnewss;
 
-        final int numOfCameras = Camera.getNumberOfCameras();
-        Log.d(TAG, "There're "+Integer.toString(numOfCameras)+" cameras on your device. You want camera "+Integer.toString(cameraId));
-
-        if(!(cameraId < numOfCameras)) {
-            Log.d(TAG, "The requested cameraId is too damn high.");
-            return null;
+    private View.OnClickListener autoFocusClickHandler = new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            mVisorView.autoFocusCamera();
         }
-
-        try {
-            c = Camera.open(cameraId); // attempt to get a Camera instance
+    };
+    private View.OnClickListener colorModeClickHandler = new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            mVisorView.toggleColorMode();
         }
-        catch (Exception e) {
-            // Camera is not available (in use or does not exist)
-            // try another one.
-            c = getCameraInstance(++cameraId);
+    };;
+    private View.OnClickListener flashLightClickHandler = new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            mVisorView.nextFlashlightMode(getApplicationContext());
         }
-        return c; // returns null if camera is unavailable
-    }
+    };;
+    private View.OnClickListener zoomClickHandler = new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            mVisorView.nextZoomLevel();
+        }
+    };;
 
-    public static Camera getCameraInstance(){
-        return getCameraInstance(0);
-    }
-
+    /**
+     * sends a {@link Toast} message to the user and quits the app immediately.
+     *
+     * @param text
+     */
     protected void abortAppWithMessage(CharSequence text) {
         Context context = getApplicationContext();
         int duration = Toast.LENGTH_SHORT;
@@ -95,64 +88,77 @@ public class VisorActivity extends Activity {
         finish();
     }
 
+    /**
+     * sets the brightness value of the screen to 1F
+     */
+    protected void setBrightnessToMaximum() {
+        WindowManager.LayoutParams layout = getWindow().getAttributes();
+        prevScreenBrightnewss = layout.screenBrightness;
+        layout.screenBrightness = 1F;
+        getWindow().setAttributes(layout);
+    }
+
+    /**
+     * resets the brightness value to the previous screen value.
+     */
+    protected void resetBrightnessToPreviousValue() {
+        WindowManager.LayoutParams layout = getWindow().getAttributes();
+        layout.screenBrightness = prevScreenBrightnewss;
+        getWindow().setAttributes(layout);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_visor);
 
-        Camera camera = getCameraInstance();
-        if(camera == null) {
-            Log.d(TAG, "Camera could not be opened! We have to abort.");
-            abortAppWithMessage("Camera could not be opened! Please ensure to quit all other apps accessing the camera on your device.");
-            return;
-        }
-        mVisorView = new VisorSurface(this, camera);
+        // mVisorView = new VisorSurface(this);
+        mVisorView = new VisorSurface(this);
 
         FrameLayout previewLayout = (FrameLayout) findViewById(R.id.camera_preview);
         previewLayout.addView(mVisorView);
 
+        setButtonListeners();
+
+        // Add a listener to the Preview button
+        mVisorView.setOnClickListener(autoFocusClickHandler);/**/
+    }
+
+    /**
+     *
+     */
+    private void setButtonListeners() {
         // Add a listener to the Zoom button
         ImageButton zoomButton = (ImageButton) findViewById(R.id.button_zoom);
-        zoomButton.setOnClickListener(
-                new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        mVisorView.nextZoomLevel();
-                    }
-                }
-        );
+        zoomButton.setOnClickListener(zoomClickHandler);
 
         // Add a listener to the Flash button
         ImageButton flashButton = (ImageButton) findViewById(R.id.button_flash);
-        flashButton.setOnClickListener(
-                new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        mVisorView.nextFlashlightMode(getApplicationContext());
-                    }
-                }
-        );
+        flashButton.setOnClickListener(flashLightClickHandler);
 
         // Add a listener to the Flash button
         ImageButton colorButton = (ImageButton) findViewById(R.id.button_color);
-        colorButton.setOnClickListener(
-                new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        mVisorView.toggleColorMode();
-                    }
-                }
-        );
+        colorButton.setOnClickListener(colorModeClickHandler);
+    }
 
-        // Add a listener to the Preview button
-        mVisorView.setOnClickListener(
-                new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        mVisorView.autoFocusCamera();
-                    }
-                }
-        );
+    @Override
+    protected void onPause() {
+        super.onPause();
+        resetBrightnessToPreviousValue();
+        Log.d(TAG, "onPause called!");
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.d(TAG, "onDestroy called!");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        setBrightnessToMaximum();
+        Log.d(TAG, "onResume called!");
     }
 }
