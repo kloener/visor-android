@@ -3,7 +3,7 @@
     android:keepScreenOn="true"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    >
+    android:focusable="false">
 
     <FrameLayout
         android:id="@+id/camera_preview"
@@ -29,8 +29,8 @@
 
     <ImageButton
         android:id="@+id/button_zoom"
-        android:layout_width="150dp"
-        android:layout_height="150dp"
+        android:layout_width="125dp"
+        android:layout_height="125dp"
         android:layout_gravity="right|center_vertical"
         android:src="@drawable/ic_add_black_48dp"
         android:scaleType="centerInside"
@@ -54,6 +54,7 @@
         android:contentDescription="@string/button_color_description"
         android:layout_above="@+id/button_zoom"
         android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true" />
+        android:layout_alignParentEnd="true"
+        android:elevation="8dp" />
 
 </RelativeLayout>

@@ -31,6 +31,11 @@ This is the offical android version of the visor app - the low vision magnifier.
 
 ## Changelog
 
+Version 0.3 (2015-08)
+
+- added talk-back support
+- added language support for german talk-back
+
 Version 0.2 (2015-08-01)
 
 - add app icon

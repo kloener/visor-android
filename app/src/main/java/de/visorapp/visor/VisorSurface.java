@@ -26,6 +26,7 @@ import android.view.SurfaceView;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import de.visorapp.visor.filters.BlackWhiteColorFilter;
@@ -85,6 +86,13 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
      * Only available if mState is Opened or Preview.
      */
     private static int mCameraId;
+
+    /**
+     * contains the current color effect index of the supported
+     * color effects from the camera.
+     * TODO: should be deleted, if we're using our custom filters.
+     */
+    private int mCameraColorEffectIndex;
 
     /**
      *
@@ -256,6 +264,9 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
 
         mCameraFlashMode        = false;
         mCameraPreviewIsRunning = false;
+
+        mCameraColorEffectIndex = 0;
+
         mState = STATE_CLOSED;
 
         Display mDisplay = ((Activity) context).getWindowManager().getDefaultDisplay();
@@ -520,11 +531,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         if(mState != STATE_PREVIEW) return;
         mCamera.cancelAutoFocus();
         mCamera.autoFocus(new Camera.AutoFocusCallback() {
-                  @Override
-                  public void onAutoFocus(boolean success, Camera camera) {
-                      Log.d(TAG, "autofocus done with " + (success ? "" : "no ") + "success");
-                  }
-              }
+                              @Override
+                              public void onAutoFocus(boolean success, Camera camera) {
+                                  Log.d(TAG, "autofocus done with " + (success ? "" : "no ") + "success");
+                              }
+                          }
         );
     }
 
@@ -603,23 +614,20 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         if(mState != STATE_PREVIEW) return;
 
         Camera.Parameters parameters = mCamera.getParameters();
-        final String currentEffect = parameters.getColorEffect();
+        List<String> supportedEffects = parameters.getSupportedColorEffects();
+        final int effectsNum = supportedEffects.size();
+        Log.d(TAG, "Supported effects by your device: " + supportedEffects.toString());
 
-        if(currentEffect == null) {
-            Log.d(TAG, "Warning! Could not receive current color effect. Cannot change the color effect.");
-            return;
+        mCameraColorEffectIndex++;
+        if(mCameraColorEffectIndex >= effectsNum) {
+            mCameraColorEffectIndex = 0;
         }
-        Log.d(TAG, "Supported effects by your device: " + parameters.getSupportedColorEffects().toString());
 
-        switch(currentEffect) {
-            case Camera.Parameters.EFFECT_MONO: parameters.setColorEffect(Camera.Parameters.EFFECT_NEGATIVE); break;
-            case Camera.Parameters.EFFECT_NEGATIVE: parameters.setColorEffect(Camera.Parameters.EFFECT_AQUA); break;
-            case Camera.Parameters.EFFECT_AQUA: parameters.setColorEffect(Camera.Parameters.EFFECT_BLACKBOARD); break;
-            case Camera.Parameters.EFFECT_BLACKBOARD: parameters.setColorEffect(Camera.Parameters.EFFECT_WHITEBOARD); break;
-            case Camera.Parameters.EFFECT_WHITEBOARD: parameters.setColorEffect(Camera.Parameters.EFFECT_POSTERIZE); break;
-            case Camera.Parameters.EFFECT_POSTERIZE: parameters.setColorEffect(Camera.Parameters.EFFECT_NONE); break;
-            default: parameters.setColorEffect(Camera.Parameters.EFFECT_MONO);
-        }
+        String newColorEffectName = supportedEffects.get(mCameraColorEffectIndex);
+        Log.d(TAG, "the current color effect is "+newColorEffectName);
+
+        parameters.setColorEffect(newColorEffectName);
+
         try {
             mCamera.setParameters(parameters);
         } catch(RuntimeException exception) {
