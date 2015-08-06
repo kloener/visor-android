@@ -7,7 +7,9 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.ImageFormat;
+import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Picture;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
@@ -25,7 +27,11 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -132,11 +138,6 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
      * converts the bits to make several different color effects.
      */
     private ColorFilter mCameraColorFilter;
-    /**
-     * a byte-array containing the camera preview buffer for further manipulation.
-     * TODO: find out if we really need this.
-     */
-    private byte[] cameraPreviewBuffer;
 
     /**
      * the width of the view and camera preview.
@@ -237,12 +238,47 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     private int mCameraPreviewFormat;
 
     /**
+     * stores the YUV image (format NV21) when onPreviewFrame was called
+     */
+    private byte[] mCameraPreviewBufferData;
+
+    /**
+     * after the onPreviewFrame was called we'll generate a
+     * bitmap for usage in onDraw.
+     */
+    private Bitmap mCameraPreviewBitmapBuffer;
+    /**
      * callback for camera previews
      */
     private Camera.PreviewCallback mCameraPreviewCallbackHandler = new Camera.PreviewCallback() {
         @Override
         public void onPreviewFrame(byte[] data, Camera camera) {
             // Log.d(TAG, "catched preview frame");
+            Camera.Parameters parameters = mCamera.getParameters();
+            int imageFormat = parameters.getPreviewFormat();
+
+            if (imageFormat == ImageFormat.NV21)
+            {
+                mCameraPreviewBufferData = data;
+                createBitmap();
+                invalidate();
+                /*
+                Rect rect = new Rect(mCameraPositionMoveX, mCameraPositionMoveY, mCameraPreviewWidth, mCameraPreviewHeight);
+                YuvImage img = new YuvImage(data, ImageFormat.NV21, mCameraPreviewWidth, mCameraPreviewHeight, null);
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                try
+                {
+                    img.compressToJpeg(rect, 10, baos);
+                    mCameraPreviewBufferData = baos.toByteArray();
+                }
+                catch (Exception e)
+                {
+                    e.printStackTrace();
+                }
+                */
+            }
+
+
 
             // cameraPreviewBuffer = yuvsSource;
             // createBitmap();
@@ -284,7 +320,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         setCameraColorFilter(NO_FILTER);
 
         //we have to set this if we're using our own onDraw method
-        // setWillNotDraw(false);
+        setWillNotDraw(false);
 
         mCamera = null;
 
@@ -304,7 +340,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
                 // mCamera.close();
                 mCamera= null;
             }
-            }
+        }
     }
     /**
      * Starts a background thread and its {@link Handler}.
@@ -348,7 +384,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         Log.d(TAG, "There're " + Integer.toString(numOfCameras) + " cameras on your device. You want camera " + Integer.toString(cameraId));
 
         if(!(cameraId < numOfCameras)) {
-            Log.d(TAG, "The requested cameraId is too damn high.");
+            Log.e(TAG, "The requested cameraId is too high.");
             return null;
         }
 
@@ -474,16 +510,18 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
             // TODO: here it get's complicated...
             rgba = new int[mCameraPreviewWidth * mCameraPreviewHeight +1];
             int bufferSize = mCameraPreviewWidth * mCameraPreviewHeight * 3 / 2;
-            cameraPreviewBuffer = new byte[bufferSize];
+            mCameraPreviewBufferData = new byte[bufferSize];
 
             // The Surface has been created, now tell the
             // camera where to draw the preview.
+            /**/
             try {
                 mCamera.setPreviewDisplay(mHolder);
             } catch (IOException e) {
                 e.printStackTrace();
                 return;
             }
+            /**/
 
             mCamera.addCallbackBuffer(new byte[bufferSize]);
             mCamera.setPreviewCallback(mCameraPreviewCallbackHandler);
@@ -567,6 +605,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         }
 
         Camera.Parameters parameters = mCamera.getParameters();
+        List<String> supportedFlashModes = parameters.getSupportedFlashModes();
+        if(!supportedFlashModes.contains(Camera.Parameters.FLASH_MODE_TORCH)) {
+            Log.e(TAG, "the current device does not support flashlight mode TORCH.");
+            return;
+        }
         mCameraFlashMode = !mCameraFlashMode;
 
         if(mCameraFlashMode == true) {
@@ -615,6 +658,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
 
         Camera.Parameters parameters = mCamera.getParameters();
         List<String> supportedEffects = parameters.getSupportedColorEffects();
+        // List<String> supportedEffects = parameters.getSupportedSceneModes(); // just for testing
+
         final int effectsNum = supportedEffects.size();
         Log.d(TAG, "Supported effects by your device: " + supportedEffects.toString());
 
@@ -627,6 +672,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         Log.d(TAG, "the current color effect is "+newColorEffectName);
 
         parameters.setColorEffect(newColorEffectName);
+        // parameters.setSceneMode(newColorEffectName);
 
         try {
             mCamera.setParameters(parameters);
@@ -641,21 +687,35 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
 
         Log.d(TAG, "creating bitmap frame");
 
-        yuvImage = new YuvImage(this.cameraPreviewBuffer, ImageFormat.NV21, mCameraPreviewWidth, mCameraPreviewHeight, null);
-
-        byteArrayOutputStream = new ByteArrayOutputStream();
+        YuvImage yuvImage = new YuvImage(mCameraPreviewBufferData, ImageFormat.NV21, mCameraPreviewWidth, mCameraPreviewHeight, null);
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         yuvImage.compressToJpeg(new Rect(0, 0, mCameraPreviewWidth, mCameraPreviewHeight), JPEG_QUALITY, byteArrayOutputStream);
-
-        bitmap = BitmapFactory.decodeByteArray(byteArrayOutputStream.toByteArray(), 0, byteArrayOutputStream.size());
+        mCameraPreviewBitmapBuffer = BitmapFactory.decodeByteArray(byteArrayOutputStream.toByteArray(), 0, byteArrayOutputStream.size());
     }
 
-    private ByteArrayOutputStream byteArrayOutputStream;
-    private YuvImage yuvImage;
-    private Bitmap bitmap;
+
 
     @Override //from SurfaceView
     public void onDraw(Canvas canvas) {
         Log.d(TAG, "called onDraw");
+
+        // canvas.drawBitmap(bitmap, 0, 0, paint);
+        // canvas.setBitmap(mCameraPreviewBitmapBuffer); // this is unsupported and causes a Exception
+
+        // canvas.drawBitmap(rgba, 0, mCameraPreviewWidth, mCameraPositionMoveX, mCameraPositionMoveY, mCameraPreviewWidth, mCameraPreviewHeight, false, null);
+
+        if(mState != STATE_PREVIEW) return;
+        if(mCameraPreviewBitmapBuffer == null) return;
+
+        int width = mCameraPreviewBitmapBuffer.getWidth();
+        int height = mCameraPreviewBitmapBuffer.getHeight();
+        float h= (float) height;
+        float w= (float) width;
+        Matrix mat=new Matrix();
+        mat.setTranslate( 500, 500 );
+        mat.setScale(800 / w, 800 / h);
+        canvas.drawBitmap(mCameraPreviewBitmapBuffer, mat, null);
+
         invalidate();
 
         /*
