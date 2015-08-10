@@ -1,11 +1,13 @@
 package de.visorapp.visor.filters;
 
+import android.graphics.ColorMatrix;
+
 /**
- * Created by handspiel on 02.08.15.
+ * Created by Christian Illies on 02.08.15.
  */
-public class YellowBlueColorFilter implements ColorFilter {
+public class YellowBlueColorFilter extends BaseFilter {
     @Override
-    public void filter() {
+    public void filter(ColorMatrix colorMatrix) {
 
     }
 }

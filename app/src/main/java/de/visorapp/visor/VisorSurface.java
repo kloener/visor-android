@@ -6,34 +6,29 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.ImageFormat;
+import android.graphics.LightingColorFilter;
 import android.graphics.Matrix;
 import android.graphics.Paint;
-import android.graphics.Picture;
 import android.graphics.Point;
 import android.graphics.Rect;
+import android.graphics.Shader;
 import android.graphics.YuvImage;
 import android.hardware.Camera;
-import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraDevice;
-import android.hardware.camera2.CameraManager;
-import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.Looper;
 import android.util.Log;
 import android.view.Display;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import de.visorapp.visor.filters.BlackWhiteColorFilter;
 import de.visorapp.visor.filters.BlueYellowColorFilter;
@@ -43,7 +38,7 @@ import de.visorapp.visor.filters.WhiteBlackColorFilter;
 import de.visorapp.visor.filters.YellowBlueColorFilter;
 
 /**
- * Created by root on 29.07.15.
+ * Created by Christian Illies on 29.07.15.
  */
 public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback {
 
@@ -65,7 +60,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     /**
      * TODO: I don't know if we really need that, because it obviously doesn't work.
      */
-    private static final int JPEG_QUALITY = 70;
+    private static final int JPEG_QUALITY = 80;
 
     /**
      * Camera state: Device is closed.
@@ -685,11 +680,14 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
      */
     public void createBitmap() {
 
-        Log.d(TAG, "creating bitmap frame");
+        //Log.d(TAG, "creating bitmap frame");
 
         YuvImage yuvImage = new YuvImage(mCameraPreviewBufferData, ImageFormat.NV21, mCameraPreviewWidth, mCameraPreviewHeight, null);
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+
+        // TODO: time-consuming -> use a separate thread for the calculation
         yuvImage.compressToJpeg(new Rect(0, 0, mCameraPreviewWidth, mCameraPreviewHeight), JPEG_QUALITY, byteArrayOutputStream);
+
         mCameraPreviewBitmapBuffer = BitmapFactory.decodeByteArray(byteArrayOutputStream.toByteArray(), 0, byteArrayOutputStream.size());
     }
 
@@ -697,24 +695,60 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
 
     @Override //from SurfaceView
     public void onDraw(Canvas canvas) {
-        Log.d(TAG, "called onDraw");
+        // Log.d(TAG, "called onDraw");
 
         // canvas.drawBitmap(bitmap, 0, 0, paint);
         // canvas.setBitmap(mCameraPreviewBitmapBuffer); // this is unsupported and causes a Exception
 
         // canvas.drawBitmap(rgba, 0, mCameraPreviewWidth, mCameraPositionMoveX, mCameraPositionMoveY, mCameraPreviewWidth, mCameraPreviewHeight, false, null);
 
-        if(mState != STATE_PREVIEW) return;
-        if(mCameraPreviewBitmapBuffer == null) return;
+        if (mState != STATE_PREVIEW) return;
+        if (mCameraPreviewBitmapBuffer == null) return;
 
         int width = mCameraPreviewBitmapBuffer.getWidth();
         int height = mCameraPreviewBitmapBuffer.getHeight();
-        float h= (float) height;
-        float w= (float) width;
-        Matrix mat=new Matrix();
-        mat.setTranslate( 500, 500 );
-        mat.setScale(800 / w, 800 / h);
-        canvas.drawBitmap(mCameraPreviewBitmapBuffer, mat, null);
+        float h = (float) height;
+        float w = (float) width;
+        Matrix mat;
+        mat = new Matrix();
+        mat.setTranslate(0, 0);
+        mat.setScale(w/2 / w, h/2 / h);
+
+        // Log.d(TAG, "Width: " +Float.toString(w) + " Height: "+Float.toString(h));
+        Paint paint = new Paint();
+        ColorMatrix colorMatrix = new ColorMatrix();
+        //colorMatrix.setSaturation(0); // grey scale
+
+        // ColorMatrix colorScale = new ColorMatrix();
+        // colorScale.setScale(1, 1, 0.8f, 1);
+
+        // Convert to grayscale, then apply brown color
+        /* colorMatrix.postConcat(colorScale);
+
+        ColorMatrix threshold = new ColorMatrix(new float[] { // alpha-blue
+                0,    0,    0,    0,      0,
+                0.3f, 0,    0,    0,     50,
+                0,    0,    0,    0,    255,
+                0.2f, 0.4f, 0.4f, 0,    -30
+        });*/
+
+
+        float[] contrast = getContrastMatrix(0.7f);
+        colorMatrix.postConcat(new ColorMatrix(new float[] {
+                0.5f, 0.5f, 0.5f,  0, 0,
+                0.5f, 0.5f, 0.5f,  0, 0,
+                0.5f, 0.5f, 0.5f,  0, 0,
+                0,    0,    0,  1, 0
+        }));
+        colorMatrix.postConcat(new ColorMatrix(contrast));
+
+        // ConvolutionFilter(4,4,new Array(0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0),1);
+        // ColorMatrixFilter(new Array(1,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,0,1,0));
+        ColorMatrixColorFilter colorFilter = new ColorMatrixColorFilter(colorMatrix);
+        paint.setColorFilter(colorFilter);
+
+        canvas.drawBitmap(mCameraPreviewBitmapBuffer, 0, 0, paint);
+        // canvas.drawBitmap(mCameraPreviewBitmapBuffer, mat, null); // works!
 
         invalidate();
 
@@ -741,6 +775,27 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         invalidate(); //to call ondraw again
         */
 
+    }
+
+    public float[] getContrastMatrix(float contrast) {
+        float scale = contrast + 1.f;
+        float translate = (-.5f * scale + .5f) * 255.f;
+        //cm.set(new float[] {
+        return new float[] {
+                scale, 0, 0, 0, translate,
+                0, scale, 0, 0, translate,
+                0, 0, scale, 0, translate,
+                0, 0, 0, 1, 0
+        };
+    }
+    public float[] getContrastAlternativeMatrix(float contrast) {
+        float translate = (1f-contrast)/2.0f;
+        return new float[] {
+                contrast, 0, 0, 0, 0,
+                0, contrast, 0, 0, 0,
+                0, 0, contrast, 0, 0,
+                translate, translate, translate, 0, 1
+        };
     }
 
     /**
