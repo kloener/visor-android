@@ -6,16 +6,12 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.ImageFormat;
-import android.graphics.LightingColorFilter;
-import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.Rect;
-import android.graphics.Shader;
 import android.graphics.YuvImage;
 import android.hardware.Camera;
 import android.hardware.camera2.CameraDevice;
@@ -28,6 +24,8 @@ import android.view.SurfaceView;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import de.visorapp.visor.filters.BlackWhiteColorFilter;
@@ -40,7 +38,7 @@ import de.visorapp.visor.filters.YellowBlueColorFilter;
 /**
  * Created by Christian Illies on 29.07.15.
  */
-public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback {
+public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback, BitmapRenderer {
 
     /**
      * The debug Tag identifier for the whole class.
@@ -60,7 +58,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     /**
      * TODO: I don't know if we really need that, because it obviously doesn't work.
      */
-    private static final int JPEG_QUALITY = 80;
+    private static final int JPEG_QUALITY = 70;
 
     /**
      * Camera state: Device is closed.
@@ -173,7 +171,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
      * TODO: rename to something more expressive
      * TODO: do we need it?
      */
-    private Paint paint;
+    private Paint mColorFilterPaint;
 
     /**
      * A {@link Handler} for running tasks in the background. We will use a seperate thread
@@ -228,11 +226,6 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     public final static ColorFilter NO_FILTER = new NoColorFilter();
 
     /**
-     * the preview format
-     */
-    private int mCameraPreviewFormat;
-
-    /**
      * stores the YUV image (format NV21) when onPreviewFrame was called
      */
     private byte[] mCameraPreviewBufferData;
@@ -242,43 +235,75 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
      * bitmap for usage in onDraw.
      */
     private Bitmap mCameraPreviewBitmapBuffer;
+
+    private int mPreviewBufferSize;
+
+    private boolean mThreadLock;
     /**
      * callback for camera previews
      */
-    private Camera.PreviewCallback mCameraPreviewCallbackHandler = new Camera.PreviewCallback() {
+    protected Camera.PreviewCallback mCameraPreviewCallbackHandler = new Camera.PreviewCallback() {
         @Override
-        public void onPreviewFrame(byte[] data, Camera camera) {
+        public void onPreviewFrame(final byte[] data, Camera camera) {
             // Log.d(TAG, "catched preview frame");
             Camera.Parameters parameters = mCamera.getParameters();
             int imageFormat = parameters.getPreviewFormat();
 
             if (imageFormat == ImageFormat.NV21)
             {
+                // Log.d(TAG, "preview");
                 mCameraPreviewBufferData = data;
-                createBitmap();
-                invalidate();
-                /*
-                Rect rect = new Rect(mCameraPositionMoveX, mCameraPositionMoveY, mCameraPreviewWidth, mCameraPreviewHeight);
-                YuvImage img = new YuvImage(data, ImageFormat.NV21, mCameraPreviewWidth, mCameraPreviewHeight, null);
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                try
-                {
-                    img.compressToJpeg(rect, 10, baos);
-                    mCameraPreviewBufferData = baos.toByteArray();
-                }
-                catch (Exception e)
-                {
-                    e.printStackTrace();
-                }
-                */
+
+                // no threads or tasks
+                // renderBitmap(createBitmap(data));
+
+
+                // single thread based (~250ms delay):
+                // performance on small HD (1280*960) acceptable ~100ms
+                /**/
+
+                // We should avoid the locking because it causes a stucky image.
+                // If we need 100ms for rendering, we only have 10fps.
+                // Without locking it feels like a bite more.
+
+                // if(mThreadLock) return;
+
+                mThreadLock = true;
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        final long millis = System.currentTimeMillis();
+                        Log.d("VisorBitmapThread", "create bitmap now!");
+                        final Bitmap bitmap = createBitmap(mCameraPreviewBufferData);
+                        Log.d("VisorBitmapThread", "created bitmap in "+Long.toString(System.currentTimeMillis()-millis)+"ms!");
+
+                        VisorSurface.this.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                Log.d("VisorUIThread", "render bitmap now! "+Long.toString(System.currentTimeMillis()-millis)+"ms");
+                                renderBitmap(bitmap);
+                                mThreadLock = false;
+
+                                callPreviewBuffer();
+                                VisorSurface.this.invalidate();
+                            }
+                        });
+                    }
+                }).start(); /**/
+
+                /* run on the UI thread:
+                ((Activity)getContext()).runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.d(TAG, "inner ui thread");
+                        renderBitmap(createBitmap(mCameraPreviewBufferData));
+                        VisorSurface.this.invalidate();
+                    }
+                }); /**/
+
+                // async task (~200ms delay)
+                // AsyncBitmapCreateTask.getInstance(data, VisorSurface.this, mCameraPreviewWidth, mCameraPreviewHeight, JPEG_QUALITY);
             }
-
-
-
-            // cameraPreviewBuffer = yuvsSource;
-            // createBitmap();
-            // invalidate();
-            // mCamera.addCallbackBuffer(yuvsSource);
         }
     };
 
@@ -288,14 +313,16 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
      */
     public VisorSurface(Context context) {
         super(context);
+
         Log.d(TAG, "VisorSurface instantiated");
 
         mCameraCurrentZoomLevel = 0;
         mCameraMaxZoomLevel     = 0;
 
         mCameraFlashMode        = false;
-        mCameraPreviewIsRunning = false;
+        mThreadLock             = false;
 
+        mColorFilterPaint = new Paint();
         mCameraColorEffectIndex = 0;
 
         mState = STATE_CLOSED;
@@ -424,7 +451,24 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     private Camera.Size getBestPreviewSize(int maxWidth, int maxHeight, Camera.Parameters parameters) {
         Camera.Size result = null;
 
-        for (Camera.Size size : parameters.getSupportedPreviewSizes()) {
+        List<Camera.Size> size = parameters.getSupportedPreviewSizes();
+        Collections.sort(size, new Comparator<Camera.Size>() {
+            @Override
+            public int compare(Camera.Size lhs, Camera.Size rhs) {
+                if(lhs.width < rhs.width) return -1;
+                if(lhs.width > rhs.width) return 1;
+                return 0;
+            }
+        });
+        for(int i=0; i<size.size(); i++) Log.d(TAG, "Size: "+Integer.toString(size.get(i).width) + " * " + Integer.toString(size.get(i).height));
+
+        // just use the last one, if there are only a few supported sizes.
+        if(size.size() < 4) return size.get(size.size()-1);
+
+        // NOTE: because of performance issues we need a smaller preview size.
+        result = size.get(size.size() - 3);
+
+        /*for (Camera.Size size : parameters.getSupportedPreviewSizes()) {
             // We do this to receive the maximum possible size value.
 
             if (size.width <= maxWidth && size.height <= maxHeight) {
@@ -443,6 +487,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
                 }
             }
         }
+        /**/
+
         if(result != null)
             Log.d(TAG, "got maximum preview size of " + Integer.toString(result.width) + "*" + Integer.toString(result.height));
 
@@ -486,9 +532,6 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
             mCameraPositionMoveX = 0;
             mCameraPositionMoveY = 0;
 
-            // for the image calculations
-            mCameraPreviewFormat = parameters.getPreviewFormat();
-
             if(mCameraPreviewWidth != width) {
                 mCameraPositionMoveX = (width - mCameraPreviewWidth) / 2;
             }
@@ -503,23 +546,21 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
             mCameraCurrentZoomLevel = mCameraMaxZoomLevel;
 
             // TODO: here it get's complicated...
-            rgba = new int[mCameraPreviewWidth * mCameraPreviewHeight +1];
-            int bufferSize = mCameraPreviewWidth * mCameraPreviewHeight * 3 / 2;
-            mCameraPreviewBufferData = new byte[bufferSize];
+            mPreviewBufferSize = mCameraPreviewWidth * mCameraPreviewHeight * 3 / 2;
+            mCameraPreviewBufferData = new byte[mPreviewBufferSize];
 
             // The Surface has been created, now tell the
             // camera where to draw the preview.
             /**/
             try {
-                mCamera.setPreviewDisplay(mHolder);
+                mCamera.setPreviewDisplay(getHolder());
             } catch (IOException e) {
                 e.printStackTrace();
                 return;
             }
             /**/
-
-            mCamera.addCallbackBuffer(new byte[bufferSize]);
-            mCamera.setPreviewCallback(mCameraPreviewCallbackHandler);
+            mCamera.setPreviewCallbackWithBuffer(mCameraPreviewCallbackHandler);
+            callPreviewBuffer();
 
             mCamera.startPreview();
             mState = STATE_PREVIEW;
@@ -530,6 +571,10 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
             Log.d(TAG, "Thread done. Camera successfully started");
         // }
         // });
+    }
+
+    private void callPreviewBuffer() {
+        mCamera.addCallbackBuffer(mCameraPreviewBufferData);
     }
 
     public void releaseCamera() {
@@ -651,7 +696,25 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     public void toggleColorMode() {
         if(mState != STATE_PREVIEW) return;
 
-        Camera.Parameters parameters = mCamera.getParameters();
+        if(getCameraColorFilter() == NO_FILTER) {
+            setCameraColorFilter(BLACK_WHITE_COLOR_FILTER);
+        }
+        else if(getCameraColorFilter() == BLACK_WHITE_COLOR_FILTER) {
+            setCameraColorFilter(WHITE_BLACK_COLOR_FILTER);
+        }
+        else {
+            setCameraColorFilter(NO_FILTER);
+        }
+
+        Log.d(TAG, "Current Filter: "+getCameraColorFilter().toString());
+
+        ColorMatrix colorMatrix = new ColorMatrix();
+        getCameraColorFilter().filter(colorMatrix);
+
+        ColorMatrixColorFilter colorFilter = new ColorMatrixColorFilter(colorMatrix);
+        mColorFilterPaint.setColorFilter(colorFilter);
+
+        /* Camera.Parameters parameters = mCamera.getParameters();
         List<String> supportedEffects = parameters.getSupportedColorEffects();
         // List<String> supportedEffects = parameters.getSupportedSceneModes(); // just for testing
 
@@ -673,129 +736,42 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
             mCamera.setParameters(parameters);
         } catch(RuntimeException exception) {
             Log.d(TAG, "could not apply the color effect. Your device does not support it.");
-        }
+        } */
     }
 
     /**
+     * sets the bitmap and invalidates the current canvas.
+     * @param bitmap
      */
-    public void createBitmap() {
-
-        //Log.d(TAG, "creating bitmap frame");
-
-        YuvImage yuvImage = new YuvImage(mCameraPreviewBufferData, ImageFormat.NV21, mCameraPreviewWidth, mCameraPreviewHeight, null);
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-
-        // TODO: time-consuming -> use a separate thread for the calculation
-        yuvImage.compressToJpeg(new Rect(0, 0, mCameraPreviewWidth, mCameraPreviewHeight), JPEG_QUALITY, byteArrayOutputStream);
-
-        mCameraPreviewBitmapBuffer = BitmapFactory.decodeByteArray(byteArrayOutputStream.toByteArray(), 0, byteArrayOutputStream.size());
+    public void renderBitmap(Bitmap bitmap) {
+        mCameraPreviewBitmapBuffer = bitmap;
     }
 
-
+    /**
+     * the actual hard work.
+     * @param yuvData
+     * @return the resulting bitmap.
+     */
+    protected Bitmap createBitmap(byte[] yuvData) {
+        YuvImage yuvImage = new YuvImage(yuvData, ImageFormat.NV21, mCameraPreviewWidth, mCameraPreviewHeight, null);
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        yuvImage.compressToJpeg(new Rect(0, 0, mCameraPreviewWidth, mCameraPreviewHeight), JPEG_QUALITY, byteArrayOutputStream);
+        return BitmapFactory.decodeByteArray(byteArrayOutputStream.toByteArray(), 0, byteArrayOutputStream.size());
+    }
 
     @Override //from SurfaceView
     public void onDraw(Canvas canvas) {
-        // Log.d(TAG, "called onDraw");
 
-        // canvas.drawBitmap(bitmap, 0, 0, paint);
-        // canvas.setBitmap(mCameraPreviewBitmapBuffer); // this is unsupported and causes a Exception
-
-        // canvas.drawBitmap(rgba, 0, mCameraPreviewWidth, mCameraPositionMoveX, mCameraPositionMoveY, mCameraPreviewWidth, mCameraPreviewHeight, false, null);
+        // Log.d(TAG, "draw");
 
         if (mState != STATE_PREVIEW) return;
         if (mCameraPreviewBitmapBuffer == null) return;
 
-        int width = mCameraPreviewBitmapBuffer.getWidth();
-        int height = mCameraPreviewBitmapBuffer.getHeight();
-        float h = (float) height;
-        float w = (float) width;
-        Matrix mat;
-        mat = new Matrix();
-        mat.setTranslate(0, 0);
-        mat.setScale(w/2 / w, h/2 / h);
+        // Canvas _canvas = getHolder().lockCanvas(new Rect(0, 0, mCameraPreviewWidth, mCameraPreviewHeight));
+        // if(_canvas == null) return;
 
-        // Log.d(TAG, "Width: " +Float.toString(w) + " Height: "+Float.toString(h));
-        Paint paint = new Paint();
-        ColorMatrix colorMatrix = new ColorMatrix();
-        //colorMatrix.setSaturation(0); // grey scale
-
-        // ColorMatrix colorScale = new ColorMatrix();
-        // colorScale.setScale(1, 1, 0.8f, 1);
-
-        // Convert to grayscale, then apply brown color
-        /* colorMatrix.postConcat(colorScale);
-
-        ColorMatrix threshold = new ColorMatrix(new float[] { // alpha-blue
-                0,    0,    0,    0,      0,
-                0.3f, 0,    0,    0,     50,
-                0,    0,    0,    0,    255,
-                0.2f, 0.4f, 0.4f, 0,    -30
-        });*/
-
-
-        float[] contrast = getContrastMatrix(0.7f);
-        colorMatrix.postConcat(new ColorMatrix(new float[] {
-                0.5f, 0.5f, 0.5f,  0, 0,
-                0.5f, 0.5f, 0.5f,  0, 0,
-                0.5f, 0.5f, 0.5f,  0, 0,
-                0,    0,    0,  1, 0
-        }));
-        colorMatrix.postConcat(new ColorMatrix(contrast));
-
-        // ConvolutionFilter(4,4,new Array(0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0),1);
-        // ColorMatrixFilter(new Array(1,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,0,1,0));
-        ColorMatrixColorFilter colorFilter = new ColorMatrixColorFilter(colorMatrix);
-        paint.setColorFilter(colorFilter);
-
-        canvas.drawBitmap(mCameraPreviewBitmapBuffer, 0, 0, paint);
-        // canvas.drawBitmap(mCameraPreviewBitmapBuffer, mat, null); // works!
-
-        invalidate();
-
-        /*
-        if((ALG && rgba == null) || (!ALG && bitmap == null)) {
-            Log.d(TAG, "onDraw abort because if nulls");
-            return;
-        }
-
-        Log.d(TAG, "draw canvas");
-        canvas.drawBitmap(rgba, 0, mCameraPreviewWidth, mCameraPositionMoveX, mCameraPositionMoveY, mCameraPreviewWidth, mCameraPreviewHeight, false, null);
-
-        /*
-        byteArrayOutputStream = new ByteArrayOutputStream();
-        yuvImage = new YuvImage(cameraPreviewBuffer, ImageFormat.NV21, mCameraPreviewWidth, mCameraPreviewHeight, null);
-
-        yuvImage.compressToJpeg(new Rect(0, 0, width, height), 80, byteArrayOutputStream); //width and height of the screen
-        jData = byteArrayOutputStream.toByteArray();
-
-        bitmap = BitmapFactory.decodeByteArray(jData, 0, jData.length);
-
-        canvas.drawBitmap(bitmap , 0, 0, paint);
-
-        invalidate(); //to call ondraw again
-        */
-
-    }
-
-    public float[] getContrastMatrix(float contrast) {
-        float scale = contrast + 1.f;
-        float translate = (-.5f * scale + .5f) * 255.f;
-        //cm.set(new float[] {
-        return new float[] {
-                scale, 0, 0, 0, translate,
-                0, scale, 0, 0, translate,
-                0, 0, scale, 0, translate,
-                0, 0, 0, 1, 0
-        };
-    }
-    public float[] getContrastAlternativeMatrix(float contrast) {
-        float translate = (1f-contrast)/2.0f;
-        return new float[] {
-                contrast, 0, 0, 0, 0,
-                0, contrast, 0, 0, 0,
-                0, 0, contrast, 0, 0,
-                translate, translate, translate, 0, 1
-        };
+        canvas.drawBitmap(mCameraPreviewBitmapBuffer, 0, 0, mColorFilterPaint);
+        // getHolder().unlockCanvasAndPost(_canvas);
     }
 
     /**
