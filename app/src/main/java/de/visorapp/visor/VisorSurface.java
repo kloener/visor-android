@@ -34,6 +34,7 @@ import de.visorapp.visor.filters.ColorFilter;
 import de.visorapp.visor.filters.NoColorFilter;
 import de.visorapp.visor.filters.WhiteBlackColorFilter;
 import de.visorapp.visor.filters.YellowBlueColorFilter;
+import de.visorapp.visor.threads.BitmapCreateThread;
 
 /**
  * Created by Christian Illies on 29.07.15.
@@ -81,6 +82,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     private static final String CAMERA_PREVIEW_THREAD = "visorSurfaceCameraThread";
 
     /**
+     * Max width for the camera preview to avoid performance issues.
+     */
+    private static final int MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH = 960;
+
+    /**
      * the currently used camera id.
      * Only available if mState is Opened or Preview.
      */
@@ -118,11 +124,6 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * stores the value of the devices max zoom level of the camera.
      */
     private int mCameraMaxZoomLevel;
-
-    /**
-     * @deprecated use the mState instead.
-     */
-    private boolean mCameraPreviewIsRunning;
 
     /**
      * TODO: make it work.
@@ -266,30 +267,21 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
                 // If we need 100ms for rendering, we only have 10fps.
                 // Without locking it feels like a bite more.
 
-                // if(mThreadLock) return;
+                if(mThreadLock) {
+                    // callPreviewBuffer();
+                    // return;
+                }
 
                 mThreadLock = true;
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        final long millis = System.currentTimeMillis();
-                        Log.d("VisorBitmapThread", "create bitmap now!");
-                        final Bitmap bitmap = createBitmap(mCameraPreviewBufferData);
-                        Log.d("VisorBitmapThread", "created bitmap in "+Long.toString(System.currentTimeMillis()-millis)+"ms!");
-
-                        VisorSurface.this.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                Log.d("VisorUIThread", "render bitmap now! "+Long.toString(System.currentTimeMillis()-millis)+"ms");
-                                renderBitmap(bitmap);
-                                mThreadLock = false;
-
-                                callPreviewBuffer();
-                                VisorSurface.this.invalidate();
-                            }
-                        });
-                    }
-                }).start(); /**/
+                new Thread(
+                    BitmapCreateThread.getInstance(
+                        mCameraPreviewBufferData,
+                        VisorSurface.this,
+                        mCameraPreviewWidth,
+                        mCameraPreviewHeight,
+                        JPEG_QUALITY)
+                ).start();
+                invalidate();
 
                 /* run on the UI thread:
                 ((Activity)getContext()).runOnUiThread(new Runnable() {
@@ -364,6 +356,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
             }
         }
     }
+
     /**
      * Starts a background thread and its {@link Handler}.
      */
@@ -460,38 +453,23 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
                 return 0;
             }
         });
-        for(int i=0; i<size.size(); i++) Log.d(TAG, "Size: "+Integer.toString(size.get(i).width) + " * " + Integer.toString(size.get(i).height));
 
-        // just use the last one, if there are only a few supported sizes.
-        if(size.size() < 4) return size.get(size.size()-1);
+        if(size.size() <= 0) return null;
 
-        // NOTE: because of performance issues we need a smaller preview size.
-        result = size.get(size.size() - 3);
+        for(int i = (size.size()-1); i>=0; i--) {
+            Log.d(TAG, "Size: "+Integer.toString(size.get(i).width) + " * " + Integer.toString(size.get(i).height));
 
-        /*for (Camera.Size size : parameters.getSupportedPreviewSizes()) {
-            // We do this to receive the maximum possible size value.
-
-            if (size.width <= maxWidth && size.height <= maxHeight) {
-                if (result == null) {
-                    result = size;
-                    continue;
-                }
-                else
-                {
-                    int resultArea = result.width * result.height;
-                    int newArea = size.width * size.height;
-
-                    if (newArea > resultArea) {
-                        result = size;
-                    }
-                }
+            final int currentWidth = size.get(i).width;
+            if(currentWidth <= MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH) {
+                result = size.get(i);
+                break;
             }
         }
-        /**/
 
-        if(result != null)
-            Log.d(TAG, "got maximum preview size of " + Integer.toString(result.width) + "*" + Integer.toString(result.height));
+        // just use the last one, if there are only a few supported sizes.
+        if(result == null) return size.get(size.size()-1);
 
+        Log.d(TAG, "got maximum preview size of " + Integer.toString(result.width) + "*" + Integer.toString(result.height));
         return result;
     }
 
@@ -510,65 +488,66 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         // mBackgroundHandler.post(new Runnable() {
         //     @Override
         //     public void run() {
-            if(mCamera == null) {
-                mCamera = getCameraInstance();
-                mState = STATE_OPENED;
-            }
-            // camera is still null so abort further actions
-            // if(mCamera == null) throw new CameraCouldNotOpenedException();
-            if(mCamera == null) return;
+        if(mCamera == null) {
+            mCamera = getCameraInstance();
+            mState = STATE_OPENED;
+        }
+        // camera is still null so abort further actions
+        // if(mCamera == null) throw new CameraCouldNotOpenedException();
+        if(mCamera == null) return;
 
-            Camera.Parameters parameters = mCamera.getParameters();
-            if(parameters.isZoomSupported()) mCameraMaxZoomLevel = parameters.getMaxZoom();
-            Camera.Size size = getBestPreviewSize(width, height, parameters);
+        Camera.Parameters parameters = mCamera.getParameters();
+        if(parameters.isZoomSupported()) mCameraMaxZoomLevel = parameters.getMaxZoom();
+        Camera.Size size = getBestPreviewSize(width, height, parameters);
 
-            // no sizes found? something went wrong
-            // if(size == null) throw new NoCameraSizesFoundException();
-            if(size == null) return;
+        // no sizes found? something went wrong
+        // if(size == null) throw new NoCameraSizesFoundException();
+        if(size == null) return;
 
-            mCameraPreviewWidth = size.width;
-            mCameraPreviewHeight = size.height;
+        mCameraPreviewWidth = size.width;
+        mCameraPreviewHeight = size.height;
 
-            mCameraPositionMoveX = 0;
-            mCameraPositionMoveY = 0;
+        mCameraPositionMoveX = 0;
+        mCameraPositionMoveY = 0;
 
-            if(mCameraPreviewWidth != width) {
-                mCameraPositionMoveX = (width - mCameraPreviewWidth) / 2;
-            }
-            if(mCameraPreviewHeight != height) {
-                mCameraPositionMoveY = (height - mCameraPreviewHeight) / 2;
-            }
+        if(mCameraPreviewWidth != width) {
+            mCameraPositionMoveX = (width - mCameraPreviewWidth) / 2;
+        }
+        if(mCameraPreviewHeight != height) {
+            mCameraPositionMoveY = (height - mCameraPreviewHeight) / 2;
+        }
 
-            parameters.setPreviewSize(mCameraPreviewWidth, mCameraPreviewHeight);
-            mCamera.setParameters(parameters);
+        parameters.setPreviewSize(mCameraPreviewWidth, mCameraPreviewHeight);
+        mCamera.setParameters(parameters);
 
-            // init zoom level member attr.
-            mCameraCurrentZoomLevel = mCameraMaxZoomLevel;
+        // init zoom level member attr.
+        mCameraCurrentZoomLevel = mCameraMaxZoomLevel;
 
-            // TODO: here it get's complicated...
-            mPreviewBufferSize = mCameraPreviewWidth * mCameraPreviewHeight * 3 / 2;
-            mCameraPreviewBufferData = new byte[mPreviewBufferSize];
+        // TODO: here it get's complicated...
+        mPreviewBufferSize = mCameraPreviewWidth * mCameraPreviewHeight * 3 / 2;
+        mCameraPreviewBufferData = new byte[mPreviewBufferSize];
 
-            // The Surface has been created, now tell the
-            // camera where to draw the preview.
-            /**/
-            try {
-                mCamera.setPreviewDisplay(getHolder());
-            } catch (IOException e) {
-                e.printStackTrace();
-                return;
-            }
-            /**/
-            mCamera.setPreviewCallbackWithBuffer(mCameraPreviewCallbackHandler);
-            callPreviewBuffer();
+        // The Surface has been created, now tell the
+        // camera where to draw the preview.
+        /**/
+        try {
+            mCamera.setPreviewDisplay(mHolder);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return;
+        }
+        /**/
 
-            mCamera.startPreview();
-            mState = STATE_PREVIEW;
+        mCamera.setPreviewCallback(mCameraPreviewCallbackHandler);
+        // callPreviewBuffer();
 
-            // start with the first zoom level.
-            nextZoomLevel();
+        mCamera.startPreview();
+        mState = STATE_PREVIEW;
 
-            Log.d(TAG, "Thread done. Camera successfully started");
+        // start with the first zoom level.
+        nextZoomLevel();
+
+        Log.d(TAG, "Thread done. Camera successfully started");
         // }
         // });
     }
@@ -745,6 +724,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      */
     public void renderBitmap(Bitmap bitmap) {
         mCameraPreviewBitmapBuffer = bitmap;
+//        callPreviewBuffer();
+//        invalidate();
     }
 
     /**
