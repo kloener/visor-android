@@ -1,11 +1,15 @@
 package de.visorapp.visor.filters;
 
+import android.graphics.ColorMatrix;
+
 /**
- * Created by handspiel on 02.08.15.
+ * Created by Christian Illies on 02.08.15.
  */
 public interface ColorFilter {
     /**
-     * Filter the byteArray image
+     * Filters the given matrix by using {@link ColorMatrix}.postConcat.
+     * The given colorMatrix is handled as a reference so we don't need return value.
+     * @param colorMatrix the color matrix you wanna change
      */
-    public void filter();
+    void filter(ColorMatrix colorMatrix);
 }

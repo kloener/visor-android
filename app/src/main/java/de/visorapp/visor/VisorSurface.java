@@ -4,30 +4,22 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.ImageFormat;
 import android.graphics.Paint;
 import android.graphics.Point;
-import android.graphics.Rect;
-import android.graphics.YuvImage;
 import android.hardware.Camera;
-import android.hardware.camera2.CameraAccessException;
-import android.hardware.camera2.CameraDevice;
-import android.hardware.camera2.CameraManager;
-import android.os.Build;
-import android.os.Handler;
-import android.os.HandlerThread;
-import android.os.Looper;
 import android.util.Log;
 import android.view.Display;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import de.visorapp.visor.filters.BlackWhiteColorFilter;
 import de.visorapp.visor.filters.BlueYellowColorFilter;
@@ -35,11 +27,12 @@ import de.visorapp.visor.filters.ColorFilter;
 import de.visorapp.visor.filters.NoColorFilter;
 import de.visorapp.visor.filters.WhiteBlackColorFilter;
 import de.visorapp.visor.filters.YellowBlueColorFilter;
+import de.visorapp.visor.threads.BitmapCreateThread;
 
 /**
- * Created by root on 29.07.15.
+ * Created by Christian Illies on 29.07.15.
  */
-public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback {
+public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback, BitmapRenderer {
 
     /**
      * The debug Tag identifier for the whole class.
@@ -52,14 +45,10 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     private static final int mCameraZoomSteps = 4;
 
     /**
-     * TODO: I don't know that ...
+     * The jpeg quality which will be rendered for each camera preview image.
+     * If the value is too high to performance decreased drastically.
      */
-    private static final boolean ALG = true;
-
-    /**
-     * TODO: I don't know if we really need that, because it obviously doesn't work.
-     */
-    private static final int JPEG_QUALITY = 70;
+    private static final int JPEG_QUALITY = 80;
 
     /**
      * Camera state: Device is closed.
@@ -82,17 +71,9 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     private static final String CAMERA_PREVIEW_THREAD = "visorSurfaceCameraThread";
 
     /**
-     * the currently used camera id.
-     * Only available if mState is Opened or Preview.
+     * Max width for the camera preview to avoid performance issues.
      */
-    private static int mCameraId;
-
-    /**
-     * contains the current color effect index of the supported
-     * color effects from the camera.
-     * TODO: should be deleted, if we're using our custom filters.
-     */
-    private int mCameraColorEffectIndex;
+    private static final int MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH = 1000;
 
     /**
      *
@@ -121,35 +102,24 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     private int mCameraMaxZoomLevel;
 
     /**
-     * @deprecated use the mState instead.
-     */
-    private boolean mCameraPreviewIsRunning;
-
-    /**
-     * TODO: make it work.
      * The current filter for the camera.
      * The filter is an interface which takes some bytes as the param and
      * converts the bits to make several different color effects.
      */
     private ColorFilter mCameraColorFilter;
-    /**
-     * a byte-array containing the camera preview buffer for further manipulation.
-     * TODO: find out if we really need this.
-     */
-    private byte[] cameraPreviewBuffer;
 
     /**
-     * the width of the view and camera preview.
+     * the width of the view.
      */
     private int width;
 
     /**
-     * the height of the view and the camera preview
+     * the height of the view
      */
     private int height;
 
     /**
-     * the maximum possible width of the camera preview that we'll use..
+     * the maximum possible width of the camera preview that we'll use.
      */
     private int mCameraPreviewWidth;
 
@@ -169,32 +139,10 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     private int mCameraPositionMoveY;
 
     /**
-     * TODO: rename to something more expressive
-     * TODO: do we need it?
+     * the paint object which has the colorFilter assigned. We will use it
+     * to apply the different color modes to the rendered preview bitmap.
      */
-    private int[] rgba;
-    /**
-     * TODO: rename to something more expressive
-     * TODO: do we need it?
-     */
-    private Paint paint;
-
-    /**
-     * A {@link Handler} for running tasks in the background. We will use a seperate thread
-     * for the camera preview to have a smooth preview.
-     */
-    private Handler mBackgroundHandler;
-
-    /**
-     * An additional thread for running tasks that shouldn't block the UI.  This is used for all
-     * callbacks from the {@link Camera}.
-     */
-    private HandlerThread mBackgroundThread;
-
-    /**
-     * Monitor Object for synchronzied accesses.
-     */
-    final private Object mCameraStateLock = new Object();;
+    private Paint mColorFilterPaint;
 
     /**
      * the current state of the camera device.
@@ -232,22 +180,47 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     public final static ColorFilter NO_FILTER = new NoColorFilter();
 
     /**
-     * the preview format
+     * stores the YUV image (format NV21) when onPreviewFrame was called
      */
-    private int mCameraPreviewFormat;
+    private byte[] mCameraPreviewBufferData;
+
+    /**
+     * after the onPreviewFrame was called we'll generate a
+     * bitmap for usage in onDraw.
+     */
+    private Bitmap mCameraPreviewBitmapBuffer;
+
+    /**
+     * the preview buffer size, calculated by using the camera preview size.
+     */
+    private int mPreviewBufferSize;
 
     /**
      * callback for camera previews
      */
-    private Camera.PreviewCallback mCameraPreviewCallbackHandler = new Camera.PreviewCallback() {
+    protected Camera.PreviewCallback mCameraPreviewCallbackHandler = new Camera.PreviewCallback() {
         @Override
-        public void onPreviewFrame(byte[] data, Camera camera) {
+        public void onPreviewFrame(final byte[] data, Camera camera) {
             // Log.d(TAG, "catched preview frame");
+            Camera.Parameters parameters = mCamera.getParameters();
+            int imageFormat = parameters.getPreviewFormat();
 
-            // cameraPreviewBuffer = yuvsSource;
-            // createBitmap();
-            // invalidate();
-            // mCamera.addCallbackBuffer(yuvsSource);
+            if (imageFormat == ImageFormat.NV21)
+            {
+                // Log.d(TAG, "preview");
+                mCameraPreviewBufferData = data;
+                new Thread(
+                    BitmapCreateThread.getInstance(
+                        mCameraPreviewBufferData,
+                        VisorSurface.this,
+                        mCameraPreviewWidth,
+                        mCameraPreviewHeight,
+                        width,
+                        height,
+                        JPEG_QUALITY)
+                ).start();
+                invalidate();
+            }
         }
     };
 
@@ -257,15 +230,14 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
      */
     public VisorSurface(Context context) {
         super(context);
+
         Log.d(TAG, "VisorSurface instantiated");
 
         mCameraCurrentZoomLevel = 0;
-        mCameraMaxZoomLevel     = 0;
+        mCameraMaxZoomLevel = 0;
 
-        mCameraFlashMode        = false;
-        mCameraPreviewIsRunning = false;
-
-        mCameraColorEffectIndex = 0;
+        mCameraFlashMode = false;
+        mColorFilterPaint = new Paint();
 
         mState = STATE_CLOSED;
 
@@ -284,7 +256,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         setCameraColorFilter(NO_FILTER);
 
         //we have to set this if we're using our own onDraw method
-        // setWillNotDraw(false);
+        setWillNotDraw(false);
 
         mCamera = null;
 
@@ -295,52 +267,26 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     }
 
     /**
-     * Closes the current {@link CameraDevice}.
+     *
+     * @return the current applied color filter
      */
-    private void closeCamera() {
-        synchronized(mCameraStateLock) {
-            mState = STATE_CLOSED;
-            if (null != mCamera) {
-                // mCamera.close();
-                mCamera= null;
-            }
-            }
-    }
-    /**
-     * Starts a background thread and its {@link Handler}.
-     */
-    private void startBackgroundThread() {
-        mBackgroundThread = new HandlerThread(CAMERA_PREVIEW_THREAD);
-        mBackgroundThread.start();
-        synchronized(mCameraStateLock) {
-            mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
-        }
-    }
-
-    /**
-     * Stops the background thread and its {@link Handler}.
-     */
-    private void stopBackgroundThread() {
-        // mBackgroundThread.quitSafely();
-        try {
-            mBackgroundThread.join();
-            mBackgroundThread = null;
-            synchronized (mCameraStateLock) {
-                mBackgroundHandler = null;
-            }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-
     public ColorFilter getCameraColorFilter() {
         return mCameraColorFilter;
     }
 
+    /**
+     * change the color filter of the camera preview on runtime.
+     * @param mCameraColorFilter
+     */
     public void setCameraColorFilter(ColorFilter mCameraColorFilter) {
         this.mCameraColorFilter = mCameraColorFilter;
     }
 
+    /**
+     * open and return a camera instance.
+     * @param cameraId
+     * @return
+     */
     public static Camera getCameraInstance(int cameraId) {
         Camera c = null;
 
@@ -348,14 +294,13 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         Log.d(TAG, "There're " + Integer.toString(numOfCameras) + " cameras on your device. You want camera " + Integer.toString(cameraId));
 
         if(!(cameraId < numOfCameras)) {
-            Log.d(TAG, "The requested cameraId is too damn high.");
+            Log.e(TAG, "The requested cameraId is too high.");
             return null;
         }
 
         try {
             c = Camera.open(cameraId); // attempt to get a Camera instance
             // stores the used camera id in the static var.
-            mCameraId = cameraId;
         }
         catch (Exception e) {
             // Camera is not available (in use or does not exist)
@@ -365,15 +310,21 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         return c; // returns null if camera is unavailable
     }
 
+    /**
+     * return camera with id 0 (default: back camera)
+     * @return
+     */
     public static Camera getCameraInstance(){
         return getCameraInstance(0);
     }
 
+    @Override
     public void surfaceCreated(SurfaceHolder holder) {
         Log.d(TAG, "called surfaceCreated");
         enableCamera();
     }
 
+    @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
         Log.d(TAG, "called surfaceDestroyed");
         releaseCamera();
@@ -381,40 +332,40 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
 
     /**
      * returns the maximum possible camera preview size which is the same or less than you've
-     * specified with the maxWidth and maxHeight.
-     * If you don't wanna set a maxWidth and maxHeight just add a huge integer in it like 9000
-     * or more.
+     * specified with the {MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH} const.
      *
-     * @param maxWidth  the maximum width we wanna receive
-     * @param maxHeight the maximum height we wanna receive
      * @param parameters the camera parameters to receive all supported preview sizes.
      * @return Camera.Size or null if the parameters could not be accessed or some other issues occured.
      */
-    private Camera.Size getBestPreviewSize(int maxWidth, int maxHeight, Camera.Parameters parameters) {
+    private Camera.Size getBestPreviewSize(Camera.Parameters parameters) {
         Camera.Size result = null;
 
-        for (Camera.Size size : parameters.getSupportedPreviewSizes()) {
-            // We do this to receive the maximum possible size value.
+        List<Camera.Size> size = parameters.getSupportedPreviewSizes();
+        Collections.sort(size, new Comparator<Camera.Size>() {
+            @Override
+            public int compare(Camera.Size lhs, Camera.Size rhs) {
+                if(lhs.width < rhs.width) return -1;
+                if(lhs.width > rhs.width) return 1;
+                return 0;
+            }
+        });
 
-            if (size.width <= maxWidth && size.height <= maxHeight) {
-                if (result == null) {
-                    result = size;
-                    continue;
-                }
-                else
-                {
-                    int resultArea = result.width * result.height;
-                    int newArea = size.width * size.height;
+        if(size.size() <= 0) return null;
 
-                    if (newArea > resultArea) {
-                        result = size;
-                    }
-                }
+        for(int i = (size.size()-1); i>=0; i--) {
+            Log.d(TAG, "Size: "+Integer.toString(size.get(i).width) + " * " + Integer.toString(size.get(i).height));
+
+            final int currentWidth = size.get(i).width;
+            if(currentWidth <= MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH) {
+                result = size.get(i);
+                break;
             }
         }
-        if(result != null)
-            Log.d(TAG, "got maximum preview size of " + Integer.toString(result.width) + "*" + Integer.toString(result.height));
 
+        // just use the last one, if there are only a few supported sizes.
+        if(result == null) return size.get(size.size()-1);
+
+        Log.d(TAG, "got maximum preview size of " + Integer.toString(result.width) + "*" + Integer.toString(result.height));
         return result;
     }
 
@@ -433,72 +384,88 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         // mBackgroundHandler.post(new Runnable() {
         //     @Override
         //     public void run() {
-            if(mCamera == null) {
-                mCamera = getCameraInstance();
-                mState = STATE_OPENED;
-            }
-            // camera is still null so abort further actions
-            // if(mCamera == null) throw new CameraCouldNotOpenedException();
-            if(mCamera == null) return;
+        if(mCamera == null) {
+            mCamera = getCameraInstance();
+            mState = STATE_OPENED;
+        }
+        // camera is still null so abort further actions
+        // if(mCamera == null) throw new CameraCouldNotOpenedException();
+        if(mCamera == null) return;
 
-            Camera.Parameters parameters = mCamera.getParameters();
-            if(parameters.isZoomSupported()) mCameraMaxZoomLevel = parameters.getMaxZoom();
-            Camera.Size size = getBestPreviewSize(width, height, parameters);
+        Camera.Parameters parameters = mCamera.getParameters();
+        if(parameters.isZoomSupported()) mCameraMaxZoomLevel = parameters.getMaxZoom();
+        Camera.Size size = getBestPreviewSize(parameters);
 
-            // no sizes found? something went wrong
-            // if(size == null) throw new NoCameraSizesFoundException();
-            if(size == null) return;
+        // no sizes found? something went wrong
+        // if(size == null) throw new NoCameraSizesFoundException();
+        if(size == null) return;
 
-            mCameraPreviewWidth = size.width;
-            mCameraPreviewHeight = size.height;
+        mCameraPreviewWidth = size.width;
+        mCameraPreviewHeight = size.height;
 
-            mCameraPositionMoveX = 0;
-            mCameraPositionMoveY = 0;
+        mCameraPositionMoveX = 0;
+        mCameraPositionMoveY = 0;
 
-            // for the image calculations
-            mCameraPreviewFormat = parameters.getPreviewFormat();
+        if(mCameraPreviewWidth != width) {
+            mCameraPositionMoveX = (width - mCameraPreviewWidth) / 2;
+        }
+        if(mCameraPreviewHeight != height) {
+            mCameraPositionMoveY = (height - mCameraPreviewHeight) / 2;
+        }
 
-            if(mCameraPreviewWidth != width) {
-                mCameraPositionMoveX = (width - mCameraPreviewWidth) / 2;
-            }
-            if(mCameraPreviewHeight != height) {
-                mCameraPositionMoveY = (height - mCameraPreviewHeight) / 2;
-            }
+        parameters.setPreviewSize(mCameraPreviewWidth, mCameraPreviewHeight);
+        mCamera.setParameters(parameters);
 
-            parameters.setPreviewSize(mCameraPreviewWidth, mCameraPreviewHeight);
-            mCamera.setParameters(parameters);
+        // init zoom level member attr.
+        mCameraCurrentZoomLevel = mCameraMaxZoomLevel;
 
-            // init zoom level member attr.
-            mCameraCurrentZoomLevel = mCameraMaxZoomLevel;
+        // pre-define some variables for image processing.
+        mPreviewBufferSize = mCameraPreviewWidth * mCameraPreviewHeight * 3 / 2;
+        mCameraPreviewBufferData = new byte[mPreviewBufferSize];
 
-            // TODO: here it get's complicated...
-            rgba = new int[mCameraPreviewWidth * mCameraPreviewHeight +1];
-            int bufferSize = mCameraPreviewWidth * mCameraPreviewHeight * 3 / 2;
-            cameraPreviewBuffer = new byte[bufferSize];
+        // The Surface has been created, now tell the
+        // camera where to draw the preview.
+        /**/
+        try {
+            mCamera.setPreviewDisplay(mHolder);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return;
+        }
+        /**/
 
-            // The Surface has been created, now tell the
-            // camera where to draw the preview.
-            try {
-                mCamera.setPreviewDisplay(mHolder);
-            } catch (IOException e) {
-                e.printStackTrace();
-                return;
-            }
+        /**
+         * NOTE: I use PreviewCallback without the buffer because I could not determine any
+         *       advantages when using it.
+         */
+        mCamera.setPreviewCallback(mCameraPreviewCallbackHandler);
+        // callPreviewBuffer();
 
-            mCamera.addCallbackBuffer(new byte[bufferSize]);
-            mCamera.setPreviewCallback(mCameraPreviewCallbackHandler);
+        mCamera.startPreview();
+        mState = STATE_PREVIEW;
 
-            mCamera.startPreview();
-            mState = STATE_PREVIEW;
+        // start with the first zoom level.
+        nextZoomLevel();
 
-            // start with the first zoom level.
-            nextZoomLevel();
-
-            Log.d(TAG, "Thread done. Camera successfully started");
-        // }
-        // });
+        Log.d(TAG, "Thread done. Camera successfully started");
     }
 
+    /**
+     * adds the current stored preview buffer data to the
+     * camera callback buffer.
+     *
+     * NOTE: I use PreviewCallback without the buffer because I could not determine any
+     *       advantages when using it.
+     *
+     * @deprecated We don't use a buffer.
+     */
+    private void callPreviewBuffer() {
+        mCamera.addCallbackBuffer(mCameraPreviewBufferData);
+    }
+
+    /**
+     *
+     */
     public void releaseCamera() {
         Log.d(TAG, "releasing the camera.");
 
@@ -519,6 +486,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         }
     }
 
+    @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
         Log.d(TAG, "called surfaceChanged");
     }
@@ -542,6 +510,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
     /**
      * starts or stops the preview mode of the camera to hold still the current
      * picture. We don't need to store it at the moment.
+     *
+     * NOTE: currently not used, but may be later it will be helpful to freeze the image.
      */
     public void toggleCameraPreview() {
         mState = mState == STATE_PREVIEW ? STATE_OPENED : STATE_PREVIEW;
@@ -567,6 +537,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
         }
 
         Camera.Parameters parameters = mCamera.getParameters();
+        List<String> supportedFlashModes = parameters.getSupportedFlashModes();
+        if(!supportedFlashModes.contains(Camera.Parameters.FLASH_MODE_TORCH)) {
+            Log.e(TAG, "the current device does not support flashlight mode TORCH.");
+            return;
+        }
         mCameraFlashMode = !mCameraFlashMode;
 
         if(mCameraFlashMode == true) {
@@ -609,78 +584,57 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
 
     /**
      * change color modes if the camera preview if supported.
+     *
+     * TODO: refactor - add another method to apply a List of filters, which could be set up in the activity and changed dynamically.
      */
     public void toggleColorMode() {
         if(mState != STATE_PREVIEW) return;
 
-        Camera.Parameters parameters = mCamera.getParameters();
-        List<String> supportedEffects = parameters.getSupportedColorEffects();
-        final int effectsNum = supportedEffects.size();
-        Log.d(TAG, "Supported effects by your device: " + supportedEffects.toString());
-
-        mCameraColorEffectIndex++;
-        if(mCameraColorEffectIndex >= effectsNum) {
-            mCameraColorEffectIndex = 0;
+        if(getCameraColorFilter() == NO_FILTER) {
+            setCameraColorFilter(BLACK_WHITE_COLOR_FILTER);
+        }
+        else if(getCameraColorFilter() == BLACK_WHITE_COLOR_FILTER) {
+            setCameraColorFilter(WHITE_BLACK_COLOR_FILTER);
+        }
+        else if(getCameraColorFilter() == WHITE_BLACK_COLOR_FILTER) {
+            setCameraColorFilter(BLUE_YELLOW_COLOR_FILTER);
+        }
+        else if(getCameraColorFilter() == BLUE_YELLOW_COLOR_FILTER) {
+            setCameraColorFilter(YELLOW_BLUE_COLOR_FILTER);
+        }
+        else {
+            setCameraColorFilter(NO_FILTER);
         }
 
-        String newColorEffectName = supportedEffects.get(mCameraColorEffectIndex);
-        Log.d(TAG, "the current color effect is "+newColorEffectName);
+        Log.d(TAG, "Current Filter: "+getCameraColorFilter().toString());
 
-        parameters.setColorEffect(newColorEffectName);
+        ColorMatrix colorMatrix = new ColorMatrix();
+        getCameraColorFilter().filter(colorMatrix);
 
-        try {
-            mCamera.setParameters(parameters);
-        } catch(RuntimeException exception) {
-            Log.d(TAG, "could not apply the color effect. Your device does not support it.");
-        }
+        ColorMatrixColorFilter colorFilter = new ColorMatrixColorFilter(colorMatrix);
+        mColorFilterPaint.setColorFilter(colorFilter);
     }
 
     /**
+     * sets the bitmap.
+     * @param bitmap
      */
-    public void createBitmap() {
-
-        Log.d(TAG, "creating bitmap frame");
-
-        yuvImage = new YuvImage(this.cameraPreviewBuffer, ImageFormat.NV21, mCameraPreviewWidth, mCameraPreviewHeight, null);
-
-        byteArrayOutputStream = new ByteArrayOutputStream();
-        yuvImage.compressToJpeg(new Rect(0, 0, mCameraPreviewWidth, mCameraPreviewHeight), JPEG_QUALITY, byteArrayOutputStream);
-
-        bitmap = BitmapFactory.decodeByteArray(byteArrayOutputStream.toByteArray(), 0, byteArrayOutputStream.size());
+    public void renderBitmap(Bitmap bitmap) {
+        mCameraPreviewBitmapBuffer = bitmap;
+//        callPreviewBuffer();
+//        invalidate();
     }
-
-    private ByteArrayOutputStream byteArrayOutputStream;
-    private YuvImage yuvImage;
-    private Bitmap bitmap;
 
     @Override //from SurfaceView
     public void onDraw(Canvas canvas) {
-        Log.d(TAG, "called onDraw");
-        invalidate();
 
-        /*
-        if((ALG && rgba == null) || (!ALG && bitmap == null)) {
-            Log.d(TAG, "onDraw abort because if nulls");
-            return;
-        }
+        // Log.d(TAG, "draw");
 
-        Log.d(TAG, "draw canvas");
-        canvas.drawBitmap(rgba, 0, mCameraPreviewWidth, mCameraPositionMoveX, mCameraPositionMoveY, mCameraPreviewWidth, mCameraPreviewHeight, false, null);
+        if (mState != STATE_PREVIEW) return;
+        if (mCameraPreviewBitmapBuffer == null) return;
 
-        /*
-        byteArrayOutputStream = new ByteArrayOutputStream();
-        yuvImage = new YuvImage(cameraPreviewBuffer, ImageFormat.NV21, mCameraPreviewWidth, mCameraPreviewHeight, null);
-
-        yuvImage.compressToJpeg(new Rect(0, 0, width, height), 80, byteArrayOutputStream); //width and height of the screen
-        jData = byteArrayOutputStream.toByteArray();
-
-        bitmap = BitmapFactory.decodeByteArray(jData, 0, jData.length);
-
-        canvas.drawBitmap(bitmap , 0, 0, paint);
-
-        invalidate(); //to call ondraw again
-        */
-
+        // just draw the bitmap which hopefully was rendered successfully on another thread.
+        canvas.drawBitmap(mCameraPreviewBitmapBuffer, 0, 0, mColorFilterPaint);
     }
 
     /**
@@ -707,12 +661,5 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback 
 
         parameters.setZoom(mCameraCurrentZoomLevel);
         mCamera.setParameters(parameters);
-    }
-
-    private class NoCameraSizesFoundException extends Throwable {
-
-    }
-
-    private class CameraCouldNotOpenedException extends Throwable {
     }
 }
