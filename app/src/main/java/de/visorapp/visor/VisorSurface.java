@@ -681,6 +681,12 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         else if(getCameraColorFilter() == BLACK_WHITE_COLOR_FILTER) {
             setCameraColorFilter(WHITE_BLACK_COLOR_FILTER);
         }
+        else if(getCameraColorFilter() == WHITE_BLACK_COLOR_FILTER) {
+            setCameraColorFilter(BLUE_YELLOW_COLOR_FILTER);
+        }
+        else if(getCameraColorFilter() == BLUE_YELLOW_COLOR_FILTER) {
+            setCameraColorFilter(YELLOW_BLUE_COLOR_FILTER);
+        }
         else {
             setCameraColorFilter(NO_FILTER);
         }

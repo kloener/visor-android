@@ -9,7 +9,7 @@ public class BlackWhiteColorFilter extends BaseFilter {
     /**
      * our default contrast level
      */
-    private static final float CONTRAST_LEVEL = 0.66f;
+    protected static final float CONTRAST_LEVEL = 0.66f;
 
     @Override
     public void filter(ColorMatrix colorMatrix) {
