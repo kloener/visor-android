@@ -25,11 +25,21 @@ Our website: http://visorapp.de/
 
 ## Android version
 
-![Screenshot of the current android version](https://christian-illies.info/upload/150801-visor-android-Screenshot.png)
+![Screenshot of the current android version](https://christian-illies.info/upload/visor-screenshot-v1.0-normal.png)
+![Black White High Contrast Mode](https://christian-illies.info/upload/visor-screenshot-v1.0-b-w.png)
+![White Black High Contrast Mode](https://christian-illies.info/upload/visor-screenshot-v1.0-w-b.png)
+![Blue Yellow High Contrast Mode](https://christian-illies.info/upload/visor-screenshot-v1.0-b-y.png)
+![Yellow Blue High Contrast Mode](https://christian-illies.info/upload/visor-screenshot-v1.0-y-b.png)
 
 This is the offical android version of the visor app - the low vision magnifier.
 
 ## Changelog
+
+Version 1.0 (2015-08-13)
+
+- add custom color modes: black on white with enhanced contrast,
+  white on black, yellow on blue and blue on yellow.
+- added background thread to handle image processing
 
 Version 0.3 (2015-08)
 
@@ -53,11 +63,7 @@ Version 0.1 (2015-07-30)
 
 ## Next Releases
 
-- add custom color modes: black on white with enhanced contrast,
-  white on black, yellow on blue and blue on yellow.
 - add original colored buttons from the iOS app
-- add voice-over support
-- add support for at least two languages (GER and EN)
 - add mirroring via chromecast, dlna or airplay
 
 ## Licence
