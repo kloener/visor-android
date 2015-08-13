@@ -109,7 +109,7 @@ public class BitmapCreateThread implements Runnable {
         Bitmap bitmap = BitmapFactory.decodeByteArray(byteArrayOutputStream.toByteArray(), 0, byteArrayOutputStream.size());
 
         // so we have to convert it again:
-        bitmap = Bitmap.createScaledBitmap(bitmap, 1920, 1080, true);
+        bitmap = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true);
 
         return bitmap;
     }
