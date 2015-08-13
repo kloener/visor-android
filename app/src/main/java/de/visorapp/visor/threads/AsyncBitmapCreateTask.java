@@ -5,7 +5,6 @@ import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
-import android.hardware.Camera;
 import android.os.AsyncTask;
 
 import java.io.ByteArrayOutputStream;
@@ -17,6 +16,8 @@ import de.visorapp.visor.BitmapRenderer;
  * to receive the Bitmap out of it.
  *
  * Test failed.
+ *
+ * @deprecated My internal test failed, so don't use this class. Instead use the {@link BitmapCreateThread}.
  *
  * Created by Christian Illies on 11.08.15.
  */
