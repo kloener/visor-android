@@ -42,6 +42,7 @@ Version 1.0 (2015-08-13)
 - add custom color modes: black on white with enhanced contrast,
   white on black, yellow on blue and blue on yellow.
 - added background thread to handle image processing
+- added original buttons from the iOS app
 
 Version 0.3 (2015-08)
 
@@ -65,7 +66,6 @@ Version 0.1 (2015-07-30)
 
 ## Next Releases
 
-- add original colored buttons from the iOS app
 - add mirroring via chromecast, dlna or airplay
 
 ## Licence
