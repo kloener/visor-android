@@ -33,6 +33,8 @@ Our website: http://visorapp.de/
 
 This is the offical android version of the visor app - the low vision magnifier.
 
+[Now available in the Google PlayStore](https://play.google.com/store/apps/details?id=de.visorapp.visor)
+
 ## Changelog
 
 Version 1.0 (2015-08-13)
