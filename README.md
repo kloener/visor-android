@@ -96,7 +96,7 @@ THE SOFTWARE.
 
 ### App Icon
 
-![App Icon Source](https://upload.wikimedia.org/wikipedia/commons/0/0e/OpenEye_icon.svg =250x)
+![App Icon Source](https://upload.wikimedia.org/wikipedia/commons/0/0e/OpenEye_icon.svg)
 
 https://commons.wikimedia.org/wiki/File:OpenEye_icon.svg
 
