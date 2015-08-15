@@ -91,3 +91,15 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+## Sources
+
+### App Icon
+
+![App Icon Source](https://upload.wikimedia.org/wikipedia/commons/0/0e/OpenEye_icon.svg =250x)
+
+https://commons.wikimedia.org/wiki/File:OpenEye_icon.svg
+
+Author: [Mun May Tee-Galloway](http://ow.ly/QW51D)
+
+Licence: [Creative Commons Attribution-Share Alike 3.0 Unported](https://creativecommons.org/licenses/by-sa/3.0/deed.en)
