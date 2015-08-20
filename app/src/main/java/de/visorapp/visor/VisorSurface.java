@@ -538,7 +538,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
         Camera.Parameters parameters = mCamera.getParameters();
         List<String> supportedFlashModes = parameters.getSupportedFlashModes();
-        if(!supportedFlashModes.contains(Camera.Parameters.FLASH_MODE_TORCH)) {
+        // 2015-08-20 Fix: Some devices/android versions return NULL instead of an list object.
+        if(supportedFlashModes == null || !supportedFlashModes.contains(Camera.Parameters.FLASH_MODE_TORCH)) {
             Log.e(TAG, "the current device does not support flashlight mode TORCH.");
             return;
         }
