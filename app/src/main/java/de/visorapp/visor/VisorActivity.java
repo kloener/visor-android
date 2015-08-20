@@ -10,6 +10,11 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import de.visorapp.visor.filters.ColorFilter;
+
 
 /**
  */
@@ -115,6 +120,15 @@ public class VisorActivity extends Activity {
 
         // mVisorView = new VisorSurface(this);
         mVisorView = new VisorSurface(this);
+
+        List<ColorFilter> filterList = new ArrayList<ColorFilter>();
+        filterList.add(VisorSurface.NO_FILTER);
+        filterList.add(VisorSurface.BLACK_WHITE_COLOR_FILTER);
+        filterList.add(VisorSurface.WHITE_BLACK_COLOR_FILTER);
+        filterList.add(VisorSurface.BLUE_YELLOW_COLOR_FILTER);
+        filterList.add(VisorSurface.YELLOW_BLUE_COLOR_FILTER);
+
+        mVisorView.setCameraColorFilters(filterList);
 
         FrameLayout previewLayout = (FrameLayout) findViewById(R.id.camera_preview);
         previewLayout.addView(mVisorView);

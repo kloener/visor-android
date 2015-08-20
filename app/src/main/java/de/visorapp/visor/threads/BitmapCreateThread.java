@@ -21,8 +21,13 @@ public class BitmapCreateThread implements Runnable {
     /**
      * too many simultan instances will end up in a huge memory leak
      * set to 0 to disable limitations.
+     *
+     * It seems that it would cause unexpected behaviour if we disable the max
+     * instances, because the rendered images get drawed unordered.
+     * If your device is slow, it is better to have only one single thread rendering the image
+     * in the background, wait for it and then render the next one.
      */
-    private static final int MAX_INSTANCES = 0;
+    private static final int MAX_INSTANCES = 1;
 
     /**
      * count all instances.
@@ -48,16 +53,13 @@ public class BitmapCreateThread implements Runnable {
      */
     public static BitmapCreateThread getInstance(byte[] yuvDataArray, BitmapRenderer renderer, int previewWidth, int previewHeight, int targetWidth, int targetHeight, int jpegQuality) {
 
-        if(MAX_INSTANCES > 0 && instanceCounter > MAX_INSTANCES) {
-            instanceCounter = 0;
-            Log.d("BitmapCreateThread", "Instance blocked");
+        if(MAX_INSTANCES > 0 && instanceCounter >= MAX_INSTANCES) {
+            Log.d("BitmapCreateThread", "Thread Creation blocked, because we reached our MAX_INSTANCES.");
             return null;
         }
 
         BitmapCreateThread instance = new BitmapCreateThread();
         instanceCounter++;
-
-        Log.d("BitmapCreateThread", "Instance created. Current Counter: "+Integer.toString(instanceCounter));
 
         instance.setYuvDataArray(yuvDataArray);
 
@@ -99,18 +101,27 @@ public class BitmapCreateThread implements Runnable {
      * @return the resulting bitmap.
      */
     protected Bitmap createBitmap(byte[] yuvData) {
+        long startTimeComplete = System.currentTimeMillis();
+
         YuvImage yuvImage = new YuvImage(yuvData, ImageFormat.NV21, previewWidth, previewHeight, null);
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         // here start the time-consuming functions:
+        //long startTimeCreateJpeg = System.currentTimeMillis();
         yuvImage.compressToJpeg(new Rect(0, 0, previewWidth, previewHeight), jpegQuality, byteArrayOutputStream);
+        //Log.d("BitmapCreateThread", "YUV compressToJpeg in " + Long.toString(System.currentTimeMillis() - startTimeCreateJpeg) + "ms");
 
         // this is your rendered Bitmap which has the same size as the camera preview,
         // but we want it to have the full screen size.
+        //long startTimeDecode = System.currentTimeMillis();
         Bitmap bitmap = BitmapFactory.decodeByteArray(byteArrayOutputStream.toByteArray(), 0, byteArrayOutputStream.size());
+        //Log.d("BitmapCreateThread", "BitmapFactory.decodeByteArray in "+Long.toString(System.currentTimeMillis()-startTimeDecode)+"ms");
 
         // so we have to convert it again:
+        //long startTimeScale = System.currentTimeMillis();
         bitmap = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true);
+        //Log.d("BitmapCreateThread", "Bitmap scaled in "+Long.toString(System.currentTimeMillis()-startTimeScale)+"ms");
 
+        Log.d("BitmapCreateThread", "Bitmap completely created - "+Long.toString(1000/(System.currentTimeMillis()-startTimeComplete))+" FPS");
         return bitmap;
     }
 
