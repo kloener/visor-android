@@ -37,6 +37,10 @@ This is the offical android version of the visor app - the low vision magnifier.
 
 ## Changelog
 
+Version 1.1 (2015-08-20)
+
+- restricted num of threads in background for bitmap processing to 1 to avoid performance drops
+
 Version 1.0 (2015-08-13)
 
 - add custom color modes: black on white with enhanced contrast,
@@ -66,6 +70,7 @@ Version 0.1 (2015-07-30)
 
 ## Next Releases
 
+- add support for camera2 API for Lollipop and above to increase the performance
 - add mirroring via chromecast, dlna or airplay
 
 ## Licence
