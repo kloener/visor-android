@@ -70,7 +70,10 @@ Version 0.1 (2015-07-30)
 
 ## Next Releases
 
+- tap and hold for permanent autofocus mode 
+- store zoom level and filter settings for the next app start
 - add support for camera2 API for Lollipop and above to increase the performance
+- hide buttons that have no device support (zoom and flash button)
 - add mirroring via chromecast, dlna or airplay
 
 ## Licence
