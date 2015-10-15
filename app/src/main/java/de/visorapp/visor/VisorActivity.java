@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
@@ -64,19 +66,26 @@ public class VisorActivity extends Activity {
         public void onClick(View v) {
             mVisorView.toggleColorMode();
         }
-    };;
+    };
     private View.OnClickListener flashLightClickHandler = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
             mVisorView.nextFlashlightMode(getApplicationContext());
         }
-    };;
+    };
     private View.OnClickListener zoomClickHandler = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
             mVisorView.nextZoomLevel();
         }
-    };;
+    };
+    private View.OnLongClickListener tapAndHoldListener = new View.OnLongClickListener() {
+        @Override
+        public boolean onLongClick(View v) {
+            mVisorView.toggleAutoFocusMode();
+            return true;
+        }
+    };
 
     /**
      * sends a {@link Toast} message to the user and quits the app immediately.
@@ -137,6 +146,7 @@ public class VisorActivity extends Activity {
 
         // Add a listener to the Preview button
         mVisorView.setOnClickListener(autoFocusClickHandler);/**/
+        mVisorView.setOnLongClickListener(tapAndHoldListener);
     }
 
     /**

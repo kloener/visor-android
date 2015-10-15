@@ -14,8 +14,11 @@ import android.graphics.Point;
 import android.hardware.Camera;
 import android.util.Log;
 import android.view.Display;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.widget.Toast;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -218,6 +221,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         Display mDisplay = ((Activity) context).getWindowManager().getDefaultDisplay();
 
         Point sizePoint = new Point();
+
         mDisplay.getSize(sizePoint);
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR1) {
             // getting a preciser value of the screen size to be more accurate.
@@ -428,11 +432,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         mCamera.cancelAutoFocus();
         final long startAutoFocusing = System.currentTimeMillis();
         mCamera.autoFocus(new Camera.AutoFocusCallback() {
-                  @Override
-                  public void onAutoFocus(boolean success, Camera camera) {
-                      Log.d(TAG, "autofocus done with " + (success ? "" : "no ") + "success in " + Long.toString(System.currentTimeMillis()-startAutoFocusing)+"ms");
-                  }
-              }
+                              @Override
+                              public void onAutoFocus(boolean success, Camera camera) {
+                                  Log.d(TAG, "autofocus done with " + (success ? "" : "no ") + "success in " + Long.toString(System.currentTimeMillis() - startAutoFocusing) + "ms");
+                              }
+                          }
         );
     }
 
@@ -443,12 +447,41 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * NOTE: currently not used, but may be later it will be helpful to freeze the image.
      */
     public void toggleCameraPreview() {
-        mState = mState == STATE_PREVIEW ? STATE_OPENED : STATE_PREVIEW;
+        mState = (mState == STATE_PREVIEW ? STATE_OPENED : STATE_PREVIEW);
         if (mState == STATE_PREVIEW) {
             mCamera.startPreview();
             return;
         }
+
         mCamera.stopPreview();
+    }
+
+    /**
+     * enables or disables the autofocus mode.
+     * We use the FOCUS_MODE_CONTINUOUS_PICTURE to enable the autofocus.
+     *
+     * Your camera has to support this method.
+     */
+    public void toggleAutoFocusMode() {
+        if(mState != STATE_PREVIEW) return;
+
+        Camera.Parameters cameraParameters = mCamera.getParameters();
+
+        List<String> focusModes = cameraParameters.getSupportedFocusModes();
+        if (!focusModes.contains(Camera.Parameters.FOCUS_MODE_AUTO)) { return; }
+        if (!focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) { return; }
+
+        String currentMode = cameraParameters.getFocusMode();
+        if(currentMode.equals(Camera.Parameters.FOCUS_MODE_AUTO)) {
+            Toast.makeText(VisorSurface.this.getContext(), R.string.text_autofocus_enabled, Toast.LENGTH_SHORT).show();
+            cameraParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+        } else {
+            Toast.makeText(VisorSurface.this.getContext(), R.string.text_autofocus_disabled, Toast.LENGTH_SHORT).show();
+            cameraParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+        }
+
+        mCamera.setParameters(cameraParameters);
+
     }
 
     /**
@@ -526,7 +559,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * change color modes if the camera preview if supported.
      */
     public void toggleColorMode() {
-        if (mState != STATE_PREVIEW) return;
+        if (mState == STATE_CLOSED) return;
         if(mCameraColorFilterList == null) return;
 
         mCurrentColorFilterIndex++;

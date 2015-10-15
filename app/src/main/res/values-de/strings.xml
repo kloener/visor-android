@@ -4,4 +4,6 @@
     <string name="button_color_description">wechsel den Kontrastmodus</string>
     <string name="button_zoom_description">ändere Vergrößerungsstufe der Kamera</string>
     <string name="button_flash_description">an und ausschalten des Blitzlichts</string>
+    <string name="text_autofocus_enabled">Autofokus aktiviert.</string>
+    <string name="text_autofocus_disabled">Autofokus deaktiviert. Antippen zum Fokussieren.</string>
 </resources>
