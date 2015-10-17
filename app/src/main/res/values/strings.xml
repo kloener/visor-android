@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Visor</string>
     <string name="button_color_description">change contrast mode</string>
@@ -5,4 +6,9 @@
     <string name="button_flash_description">toggle flashlight on and off</string>
     <string name="text_autofocus_enabled">Autofocus enabled.</string>
     <string name="text_autofocus_disabled">Autofocus disabled. Tap to focus.</string>
+
+    <!-- Key names (equal in all languages) -->
+    <string name="visor_shared_preference_name">VisorAndroidSharedPreference</string>
+    <string name="key_preference_zoom_level">VisorAndroidKeyPreferenceZoomLevel</string>
+    <string name="key_preference_color_mode">VisorAndroidKeyPreferenceColorMode</string>
 </resources>

@@ -4,8 +4,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.GestureDetector;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
@@ -164,6 +162,9 @@ public class VisorActivity extends Activity {
         // Add a listener to the Flash button
         ImageButton colorButton = (ImageButton) findViewById(R.id.button_color);
         colorButton.setOnClickListener(colorModeClickHandler);
+
+        mVisorView.setZoomButton(zoomButton);
+        mVisorView.setFlashButton(flashButton);
     }
 
     @Override

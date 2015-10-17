@@ -2,10 +2,10 @@ package de.visorapp.visor;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.ImageFormat;
@@ -14,10 +14,9 @@ import android.graphics.Point;
 import android.hardware.Camera;
 import android.util.Log;
 import android.view.Display;
-import android.view.GestureDetector;
-import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.widget.Toast;
 
 import java.io.IOException;
@@ -202,6 +201,20 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     };
 
     /**
+     * reference to the zoom button.
+     *
+     * We hide the zoom Button if zoom is not supported
+     * by the device camera.
+     */
+    private View zoomButtonView;
+    /**
+     * reference to the flash button.
+     *
+     * We hide the flash button if flashlight isn't supported.
+     */
+    private View flashButtonView;
+
+    /**
      * @param context activity
      */
     public VisorSurface(Context context) {
@@ -212,6 +225,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         mCameraCurrentZoomLevel = 0;
         mCameraMaxZoomLevel = 0;
         mCurrentColorFilterIndex = 0;
+
+        SharedPreferences sharedPreferences = context.getSharedPreferences(String.valueOf(R.string.visor_shared_preference_name), Context.MODE_PRIVATE);
+
+        mCameraCurrentZoomLevel = sharedPreferences.getInt(String.valueOf(R.string.key_preference_zoom_level), mCameraCurrentZoomLevel);
+        mCurrentColorFilterIndex = sharedPreferences.getInt(String.valueOf(R.string.key_preference_color_mode), mCurrentColorFilterIndex);
 
         mCameraFlashMode = false;
         mColorFilterPaint = new Paint();
@@ -287,7 +305,15 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
-        Log.d(TAG, "called surfaceDestroyed");
+        Log.d(TAG, "called surfaceDestroyed. Storing settings");
+
+        SharedPreferences sharedPreferences = this.getContext().getSharedPreferences(String.valueOf(R.string.visor_shared_preference_name), Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+
+        editor.putInt(String.valueOf(R.string.key_preference_zoom_level), mCameraCurrentZoomLevel);
+        editor.putInt(String.valueOf(R.string.key_preference_color_mode), mCurrentColorFilterIndex);
+        editor.commit();
+
         releaseCamera();
     }
 
@@ -353,8 +379,16 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         if (mCamera == null) return;
 
         Camera.Parameters parameters = mCamera.getParameters();
-        if (parameters.isZoomSupported()) mCameraMaxZoomLevel = parameters.getMaxZoom();
+        if (parameters.isZoomSupported()) {
+            mCameraMaxZoomLevel = parameters.getMaxZoom();
+        } else {
+            getZoomButtonView().setVisibility(View.INVISIBLE);
+        }
         Camera.Size size = getBestPreviewSize(parameters);
+
+        if(!getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH)) {
+            getFlashButtonView().setVisibility(View.INVISIBLE);
+        }
 
         int cameraPreviewFormat = parameters.getPreviewFormat();
         if (cameraPreviewFormat != ImageFormat.NV21) return;
@@ -368,9 +402,6 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
         parameters.setPreviewSize(mCameraPreviewWidth, mCameraPreviewHeight);
         mCamera.setParameters(parameters);
-
-        // init zoom level member attr.
-        mCameraCurrentZoomLevel = mCameraMaxZoomLevel;
 
         // pre-define some variables for image processing.
         mCameraPreviewBufferData = new byte[mCameraPreviewWidth * mCameraPreviewHeight * 3 / 2];
@@ -390,7 +421,20 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         mState = STATE_PREVIEW;
 
         // start with the first zoom level.
-        nextZoomLevel();
+        // init zoom level member attr.
+        if(mCameraCurrentZoomLevel == 0) {
+            mCameraCurrentZoomLevel = mCameraMaxZoomLevel;
+            nextZoomLevel();
+        } else {
+            setCameraZoomLevel(mCameraCurrentZoomLevel);
+        }
+
+        if(mCurrentColorFilterIndex > 0) {
+            mCurrentColorFilterIndex--;
+            // decrease index because
+            // the toggle causes the increment
+            toggleColorMode();
+        }
 
         Log.d(TAG, "Thread done. Camera successfully started");
     }
@@ -617,5 +661,21 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
         parameters.setZoom(mCameraCurrentZoomLevel);
         mCamera.setParameters(parameters);
+    }
+
+    public View getZoomButtonView() {
+        return zoomButtonView;
+    }
+
+    public View getFlashButtonView() {
+        return flashButtonView;
+    }
+
+    public void setZoomButton(View zoomButton) {
+        this.zoomButtonView = zoomButton;
+    }
+
+    public void setFlashButton(View flashButton) {
+        this.flashButtonView = flashButton;
     }
 }

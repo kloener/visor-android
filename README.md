@@ -40,6 +40,8 @@ This is the offical android version of the visor app - the low vision magnifier.
 Version 1.2 (2015-10-15)
 
 - tap and hold for permanent autofocus mode
+- store zoom level and filter settings for the next app start
+- hide buttons that have no device support (zoom and flash button)
 
 Version 1.1 (2015-08-20)
 
@@ -74,10 +76,8 @@ Version 0.1 (2015-07-30)
 
 ## Next Releases
 
-- store zoom level and filter settings for the next app start
 - freeze image (i.e. via double tap) and add digital zoom options (pinch to zoom)
 - add support for camera2 API for Lollipop and above to increase the performance
-- hide buttons that have no device support (zoom and flash button)
 - add mirroring via chromecast, dlna or airplay
 
 ## Licence
