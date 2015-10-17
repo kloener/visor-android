@@ -11,4 +11,5 @@
     <string name="visor_shared_preference_name">VisorAndroidSharedPreference</string>
     <string name="key_preference_zoom_level">VisorAndroidKeyPreferenceZoomLevel</string>
     <string name="key_preference_color_mode">VisorAndroidKeyPreferenceColorMode</string>
+    <string name="key_preference_autofocus_mode">VisorAndroidKeyPreferenceAutofocusMode</string>
 </resources>

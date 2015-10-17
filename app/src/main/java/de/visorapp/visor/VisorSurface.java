@@ -215,6 +215,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     private View flashButtonView;
 
     /**
+     * auto focus mode which was stored in the shared preferences.
+     */
+    private String storedAutoFocusMode;
+
+    /**
      * @param context activity
      */
     public VisorSurface(Context context) {
@@ -227,9 +232,9 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         mCurrentColorFilterIndex = 0;
 
         SharedPreferences sharedPreferences = context.getSharedPreferences(String.valueOf(R.string.visor_shared_preference_name), Context.MODE_PRIVATE);
-
         mCameraCurrentZoomLevel = sharedPreferences.getInt(String.valueOf(R.string.key_preference_zoom_level), mCameraCurrentZoomLevel);
         mCurrentColorFilterIndex = sharedPreferences.getInt(String.valueOf(R.string.key_preference_color_mode), mCurrentColorFilterIndex);
+        storedAutoFocusMode = sharedPreferences.getString(String.valueOf(R.string.key_preference_autofocus_mode), Camera.Parameters.FOCUS_MODE_AUTO);
 
         mCameraFlashMode = false;
         mColorFilterPaint = new Paint();
@@ -312,6 +317,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
         editor.putInt(String.valueOf(R.string.key_preference_zoom_level), mCameraCurrentZoomLevel);
         editor.putInt(String.valueOf(R.string.key_preference_color_mode), mCurrentColorFilterIndex);
+        editor.putString(String.valueOf(R.string.key_preference_autofocus_mode), mCamera.getParameters().getFocusMode());
+
         editor.commit();
 
         releaseCamera();
@@ -419,6 +426,10 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         mCamera.setPreviewCallback(mCameraPreviewCallbackHandler);
         mCamera.startPreview();
         mState = STATE_PREVIEW;
+
+        if(!storedAutoFocusMode.equals(Camera.Parameters.FOCUS_MODE_AUTO)) {
+            toggleAutoFocusMode();
+        }
 
         // start with the first zoom level.
         // init zoom level member attr.
