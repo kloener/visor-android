@@ -170,7 +170,9 @@ public class VisorActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        resetBrightnessToPreviousValue();
+        // 2015-10-19 ChangeRequest: Some users have problems with the high brightness value.
+        //                           So the user now has to activly adjust the brightness.
+        // resetBrightnessToPreviousValue();
         Log.d(TAG, "onPause called!");
     }
 
@@ -183,7 +185,10 @@ public class VisorActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        setBrightnessToMaximum();
+
+        // 2015-10-19 ChangeRequest: Some users have problems with the high brightness value.
+        //                           So the user now has to activly adjust the brightness.
+        // setBrightnessToMaximum();
         Log.d(TAG, "onResume called!");
     }
 }
