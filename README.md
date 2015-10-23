@@ -37,6 +37,10 @@ This is the offical android version of the visor app - the low vision magnifier.
 
 ## Changelog
 
+Version 1.2.1 (2015-10-19)
+
+- (User-Request) the app now does not adjust the brightness level.
+
 Version 1.2 (2015-10-15)
 
 - tap and hold for permanent autofocus mode
