@@ -51,7 +51,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * The jpeg quality which will be rendered for each camera preview image.
      * If the value is too high to performance decreased drastically.
      */
-    private static final int JPEG_QUALITY = 66;
+    private static final int JPEG_QUALITY = 77;
 
     /**
      * Camera state: Device is closed.
@@ -71,7 +71,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     /**
      * Max width for the camera preview to avoid performance issues.
      */
-    private static final int MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH = 1000;
+    private static final int MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH = 801;
 
     /**
      *
@@ -398,7 +398,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         }
 
         int cameraPreviewFormat = parameters.getPreviewFormat();
-        if (cameraPreviewFormat != ImageFormat.NV21) return;
+        if (cameraPreviewFormat != ImageFormat.NV21) parameters.setPreviewFormat(ImageFormat.NV21);
 
         // no sizes found? something went wrong
         // if(size == null) throw new NoCameraSizesFoundException();

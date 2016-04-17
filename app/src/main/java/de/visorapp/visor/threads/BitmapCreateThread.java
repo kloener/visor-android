@@ -22,12 +22,16 @@ public class BitmapCreateThread implements Runnable {
      * too many simultan instances will end up in a huge memory leak
      * set to 0 to disable limitations.
      *
+     * Old Info:
      * It seems that it would cause unexpected behaviour if we disable the max
      * instances, because the rendered images get drawed unordered.
      * If your device is slow, it is better to have only one single thread rendering the image
      * in the background, wait for it and then render the next one.
+     *
+     * New Info:
+     * On my new telephone LG G4 it works much better with a higher instances value.
      */
-    private static final int MAX_INSTANCES = 1;
+    private static final int MAX_INSTANCES = 24;
 
     /**
      * count all instances.
@@ -53,7 +57,7 @@ public class BitmapCreateThread implements Runnable {
      */
     public static BitmapCreateThread getInstance(byte[] yuvDataArray, BitmapRenderer renderer, int previewWidth, int previewHeight, int targetWidth, int targetHeight, int jpegQuality) {
 
-        if(MAX_INSTANCES > 0 && instanceCounter >= MAX_INSTANCES) {
+        if(instanceCounter >= MAX_INSTANCES) {
             Log.d("BitmapCreateThread", "Thread Creation blocked, because we reached our MAX_INSTANCES.");
             return null;
         }
@@ -108,7 +112,7 @@ public class BitmapCreateThread implements Runnable {
         // here start the time-consuming functions:
         //long startTimeCreateJpeg = System.currentTimeMillis();
         yuvImage.compressToJpeg(new Rect(0, 0, previewWidth, previewHeight), jpegQuality, byteArrayOutputStream);
-        //Log.d("BitmapCreateThread", "YUV compressToJpeg in " + Long.toString(System.currentTimeMillis() - startTimeCreateJpeg) + "ms");
+        Log.d("BitmapCreateThread", "YUV compressToJpeg. byteArray Size"+byteArrayOutputStream.size());
 
         // this is your rendered Bitmap which has the same size as the camera preview,
         // but we want it to have the full screen size.
