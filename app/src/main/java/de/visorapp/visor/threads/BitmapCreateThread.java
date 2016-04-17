@@ -108,16 +108,23 @@ public class BitmapCreateThread implements Runnable {
         long startTimeComplete = System.currentTimeMillis();
 
         YuvImage yuvImage = new YuvImage(yuvData, ImageFormat.NV21, previewWidth, previewHeight, null);
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+
+        Bitmap editedBitmap = Bitmap.createBitmap(previewWidth, previewHeight, android.graphics.Bitmap.Config.ARGB_8888);
+        int[] rgbData = this.decodeGreyscale(yuvData, previewWidth, previewHeight);
+        editedBitmap.setPixels(rgbData, 0, previewWidth, 0, 0, previewWidth, previewHeight);
+        Bitmap bitmap = Bitmap.createBitmap(editedBitmap, 0, 0, previewWidth, previewHeight, null, true);
+
+
+        //ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         // here start the time-consuming functions:
         //long startTimeCreateJpeg = System.currentTimeMillis();
-        yuvImage.compressToJpeg(new Rect(0, 0, previewWidth, previewHeight), jpegQuality, byteArrayOutputStream);
-        Log.d("BitmapCreateThread", "YUV compressToJpeg. byteArray Size"+byteArrayOutputStream.size());
+        //yuvImage.compressToJpeg(new Rect(0, 0, previewWidth, previewHeight), jpegQuality, byteArrayOutputStream);
+        //Log.d("BitmapCreateThread", "YUV compressToJpeg. byteArray Size"+byteArrayOutputStream.size());
 
         // this is your rendered Bitmap which has the same size as the camera preview,
         // but we want it to have the full screen size.
         //long startTimeDecode = System.currentTimeMillis();
-        Bitmap bitmap = BitmapFactory.decodeByteArray(byteArrayOutputStream.toByteArray(), 0, byteArrayOutputStream.size());
+        //Bitmap bitmap = BitmapFactory.decodeByteArray(byteArrayOutputStream.toByteArray(), 0, byteArrayOutputStream.size());
         //Log.d("BitmapCreateThread", "BitmapFactory.decodeByteArray in "+Long.toString(System.currentTimeMillis()-startTimeDecode)+"ms");
 
         // so we have to convert it again:
@@ -127,6 +134,24 @@ public class BitmapCreateThread implements Runnable {
 
         Log.d("BitmapCreateThread", "Bitmap completely created - "+Long.toString(1000/(System.currentTimeMillis()-startTimeComplete))+" FPS");
         return bitmap;
+    }
+
+    /**
+     * @source http://stackoverflow.com/a/29963291
+     * @param nv21
+     * @param width
+     * @param height
+     * @return
+     */
+    private int[] decodeGreyscale(byte[] nv21, int width, int height) {
+        int pixelCount = width * height;
+        int[] out = new int[pixelCount];
+        for (int i = 0; i < pixelCount; ++i) {
+            int luminance = nv21[i] & 0xFF;
+            // out[i] = Color.argb(0xFF, luminance, luminance, luminance);
+            out[i] = 0xff000000 | luminance <<16 | luminance <<8 | luminance;//No need to create Color object for each.
+        }
+        return out;
     }
 
     /**
