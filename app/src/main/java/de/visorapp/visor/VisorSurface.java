@@ -632,7 +632,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         mColorFilterPaint.setColorFilter(colorFilter);
 
         if(mState == STATE_OPENED) {
-            runBitmapCreateThread(true);
+            invalidate();
         }
     }
 
