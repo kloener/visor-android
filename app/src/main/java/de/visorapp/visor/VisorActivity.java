@@ -2,7 +2,11 @@ package de.visorapp.visor;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
@@ -10,7 +14,10 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import de.visorapp.visor.filters.ColorFilter;
@@ -48,9 +55,10 @@ public class VisorActivity extends Activity {
     private VisorSurface mVisorView;
 
     /**
-     * stores the pause button state to replace the image inside of it.
+     * Is the preview running? > Pause Btn + Zoom Btn
+     * If not > Play Btn + Photo Share Btn
      */
-    private boolean pauseButtonState = true;
+    private boolean cameraPreviewState = true;
 
     /**
      * stores the brightness level of the screen to restore it after the
@@ -75,13 +83,16 @@ public class VisorActivity extends Activity {
         public void onClick(View v) {
             mVisorView.toggleCameraPreview();
             ImageButton btn = (ImageButton) v;
-            if(pauseButtonState)
+            if(cameraPreviewState) {
                 btn.setImageResource(R.drawable.ic_play_arrow_black_48dp);
-            else
+                mZoomButton.setImageResource(R.drawable.ic_share_black_48dp);
+            } else {
                 btn.setImageResource(R.drawable.ic_pause_black_48dp);
+                mZoomButton.setImageResource(R.drawable.ic_add_black_48dp);
+            }
 
             // btn.invalidateDrawable(null);
-            pauseButtonState = !pauseButtonState;
+            cameraPreviewState = !cameraPreviewState;
         }
     };
     private View.OnClickListener flashLightClickHandler = new View.OnClickListener() {
@@ -93,7 +104,12 @@ public class VisorActivity extends Activity {
     private View.OnClickListener zoomClickHandler = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
-            mVisorView.nextZoomLevel();
+            if(cameraPreviewState){
+                mVisorView.nextZoomLevel();
+                return;
+            }
+
+            takeScreenshot();
         }
     };
     private View.OnLongClickListener tapAndHoldListener = new View.OnLongClickListener() {
@@ -103,6 +119,11 @@ public class VisorActivity extends Activity {
             return true;
         }
     };
+
+    /**
+     * Store the reference to swap the icon on it if we pause the preview.
+     */
+    private ImageButton mZoomButton;
 
     /**
      * sends a {@link Toast} message to the user and quits the app immediately.
@@ -187,6 +208,8 @@ public class VisorActivity extends Activity {
 
         mVisorView.setZoomButton(zoomButton);
         mVisorView.setFlashButton(flashButton);
+
+        mZoomButton = zoomButton;
     }
 
     @Override
@@ -212,5 +235,46 @@ public class VisorActivity extends Activity {
         //                           So the user now has to activly adjust the brightness.
         // setBrightnessToMaximum();
         Log.d(TAG, "onResume called!");
+    }
+
+    private void takeScreenshot() {
+        Date now = new Date();
+        android.text.format.DateFormat.format("visor-android.app_yyyy-MM-dd_hh:mm:ss", now);
+
+        try {
+            // image naming and path  to include sd card  appending name you choose for file
+            String mPath = Environment.getExternalStorageDirectory().toString() + "/" + now + ".jpg";
+
+            // create bitmap screen capture
+            /*
+            View v1 = mVisorView;
+            v1.setDrawingCacheEnabled(true);
+            Bitmap bitmap = Bitmap.createBitmap(v1.getDrawingCache());
+            v1.setDrawingCacheEnabled(false);
+            */
+
+            Bitmap bitmap = mVisorView.getBitmap();
+
+            File imageFile = new File(mPath);
+
+            FileOutputStream outputStream = new FileOutputStream(imageFile);
+            int quality = 100;
+            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream);
+            outputStream.flush();
+            outputStream.close();
+
+            openScreenshot(imageFile);
+        } catch (Throwable e) {
+            // Several error may come out with file handling or OOM
+            e.printStackTrace();
+        }
+    }
+
+    private void openScreenshot(File imageFile) {
+        Intent intent = new Intent();
+        intent.setAction(Intent.ACTION_VIEW);
+        Uri uri = Uri.fromFile(imageFile);
+        intent.setDataAndType(uri, "image/*");
+        startActivity(intent);
     }
 }
