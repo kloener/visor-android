@@ -69,9 +69,9 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     private static final int STATE_PREVIEW = 2;
 
     /**
-     * Max width for the camera preview to avoid performance issues.
+     * Max width for the camera preview to avoid performance and ram/cache issues.
      */
-    private static final int MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH = 801;
+    private static final int MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH = 800;
 
     /**
      *
@@ -183,23 +183,18 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     protected Camera.PreviewCallback mCameraPreviewCallbackHandler = new Camera.PreviewCallback() {
         @Override
         public void onPreviewFrame(final byte[] data, Camera camera) {
-            mCameraPreviewBufferData = data;
-            BitmapCreateThread bitmapCreateThread = BitmapCreateThread.getInstance(
-                    mCameraPreviewBufferData,
-                    VisorSurface.this,
-                    mCameraPreviewWidth,
-                    mCameraPreviewHeight,
-                    width,
-                    height,
-                    JPEG_QUALITY
-            );
-            if (bitmapCreateThread == null) return;
 
-            new Thread(bitmapCreateThread).start();
-            invalidate();
+            mCameraPreviewBufferData = data;
+            if(!hasActiveFilterEnabled()) {
+                invalidate();
+                return;
+            }
+
+            runBitmapCreateThread(false);
+            // we're on the ui thread here:
+            // invalidate();
         }
     };
-
     /**
      * reference to the zoom button.
      *
@@ -218,6 +213,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * auto focus mode which was stored in the shared preferences.
      */
     private String storedAutoFocusMode;
+    private boolean mPauseOnReady = false;
 
     /**
      * @param context activity
@@ -256,6 +252,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
         //we have to set this if we're using our own onDraw method
         setWillNotDraw(false);
+        setDrawingCacheEnabled(true);
 
         mCamera = null;
 
@@ -447,6 +444,10 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
             toggleColorMode();
         }
 
+        if(mPauseOnReady) {
+            toggleCameraPreview();
+        }
+
         Log.d(TAG, "Thread done. Camera successfully started");
     }
 
@@ -498,17 +499,19 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     /**
      * starts or stops the preview mode of the camera to hold still the current
      * picture. We don't need to store it at the moment.
-     * <p/>
-     * NOTE: currently not used, but may be later it will be helpful to freeze the image.
      */
     public void toggleCameraPreview() {
         mState = (mState == STATE_PREVIEW ? STATE_OPENED : STATE_PREVIEW);
         if (mState == STATE_PREVIEW) {
+
             mCamera.startPreview();
             return;
         }
 
         mCamera.stopPreview();
+
+        // run create thread otherwise we could see an old image.
+        runBitmapCreateThread(true);
     }
 
     /**
@@ -628,6 +631,29 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
         ColorMatrixColorFilter colorFilter = new ColorMatrixColorFilter(colorMatrix);
         mColorFilterPaint.setColorFilter(colorFilter);
+
+        if(mState == STATE_OPENED) {
+            invalidate();
+        }
+    }
+
+    /**
+     * Runs a bitmap create thread with the current `mCameraPreviewBufferData`.
+     * If finished, the thread calls `renderBitmap` with the final bitmap as the result.
+     */
+    protected void runBitmapCreateThread(boolean rgb) {
+        final BitmapCreateThread bitmapCreateThread = BitmapCreateThread.getInstance(
+                mCameraPreviewBufferData,
+                VisorSurface.this,
+                mCameraPreviewWidth,
+                mCameraPreviewHeight,
+                width,
+                height,
+                JPEG_QUALITY,
+                rgb
+        );
+        if (bitmapCreateThread == null) return;
+        new Thread(bitmapCreateThread).start();
     }
 
     /**
@@ -636,16 +662,45 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * @param bitmap
      */
     public void renderBitmap(Bitmap bitmap) {
+        /*if (mCameraPreviewBitmapBuffer != null && !mCameraPreviewBitmapBuffer.isRecycled()) {
+            mCameraPreviewBitmapBuffer.recycle();
+            mCameraPreviewBitmapBuffer = null;
+        }*/
         mCameraPreviewBitmapBuffer = bitmap;
+
+        /**
+         */
+        ((Activity) getContext()).runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                invalidate();
+            }
+        });
+        /**/
     }
 
-    @Override //from SurfaceView
+    @Override
     public void onDraw(Canvas canvas) {
-        if (mState != STATE_PREVIEW) return;
-        if (mCameraPreviewBitmapBuffer == null) return;
+        if (mState == STATE_CLOSED) return;
+        if (mCameraPreviewBitmapBuffer == null || mCameraPreviewBitmapBuffer.isRecycled()) return;
 
-        // just draw the bitmap which hopefully was rendered successfully on another thread.
-        canvas.drawBitmap(mCameraPreviewBitmapBuffer, 0, 0, mColorFilterPaint);
+        /**
+         * Description:
+         * If the state is opened the preview is probably paused
+         */
+        if( (mState== STATE_PREVIEW && hasActiveFilterEnabled()) || mState == STATE_OPENED) {
+            canvas.drawBitmap(mCameraPreviewBitmapBuffer, 0, 0, mColorFilterPaint);
+        }
+    }
+
+    /**
+     * determines if a filter is active. A filter is active if it is not "NO_FILTER".
+     * Used to save performance while have normal (without color effects) camera preview enabled.
+     *
+     * @return true if the current color mode is not NO_FILTER
+     */
+    private boolean hasActiveFilterEnabled() {
+        return (mCameraColorFilterList.get(mCurrentColorFilterIndex) != NO_FILTER);
     }
 
     /**
@@ -688,5 +743,17 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
     public void setFlashButton(View flashButton) {
         this.flashButtonView = flashButton;
+    }
+
+    public Bitmap getBitmap() {
+        getRootView().buildDrawingCache();
+        final Bitmap bitmap = Bitmap.createBitmap( getRootView().getDrawingCache() );
+        getRootView().destroyDrawingCache();
+        return bitmap;
+        // return mCameraPreviewBitmapBuffer;
+    }
+
+    public void pausePreviewIfReady() {
+        mPauseOnReady = true;
     }
 }

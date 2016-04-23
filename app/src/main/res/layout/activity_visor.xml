@@ -9,7 +9,9 @@
         android:id="@+id/camera_preview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_alignParentTop="true" />
+        android:layout_alignParentTop="true" >
+
+    </FrameLayout>
 
     <ImageButton
         android:id="@+id/button_flash"
@@ -26,6 +28,28 @@
         android:layout_alignRight="@+id/button_zoom"
         android:layout_alignEnd="@+id/button_zoom"
         android:elevation="8dp" />
+
+
+    <ImageButton
+        android:id="@+id/button_pause"
+        android:layout_width="@dimen/button_size_third"
+        android:layout_height="@dimen/button_size_third"
+        android:src="@drawable/ic_pause_black_48dp"
+        android:paddingTop="@dimen/button_padding_secondary"
+        android:paddingBottom="@dimen/button_padding_secondary"
+        android:background="@drawable/button_zoom_round_corners"
+        android:contentDescription="@string/button_flash_description"
+        android:scaleType="centerInside"
+        android:layout_gravity="center_vertical"
+        android:layout_toLeftOf="@id/button_zoom"
+        android:elevation="8dp"
+        android:layout_alignParentTop="false"
+        android:layout_alignParentBottom="false"
+        android:layout_alignParentLeft="false"
+        android:layout_alignWithParentIfMissing="false"
+        android:layout_alignBaseline="@+id/button_zoom"
+        android:layout_centerVertical="true"
+        android:layout_marginRight="8dp" />
 
     <ImageButton
         android:id="@+id/button_zoom"

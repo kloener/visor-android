@@ -31,7 +31,7 @@ public class BitmapCreateThread implements Runnable {
      * New Info:
      * On my new telephone LG G4 it works much better with a higher instances value.
      */
-    private static final int MAX_INSTANCES = 24;
+    private static final int MAX_INSTANCES = 10;
 
     /**
      * count all instances.
@@ -48,6 +48,7 @@ public class BitmapCreateThread implements Runnable {
     private int jpegQuality;
     private BitmapRenderer renderer;
     private byte[] yuvDataArray;
+    private boolean useRgb;
 
     /**
      * returns an instance of the task
@@ -55,7 +56,7 @@ public class BitmapCreateThread implements Runnable {
      * @param renderer
      * @return
      */
-    public static BitmapCreateThread getInstance(byte[] yuvDataArray, BitmapRenderer renderer, int previewWidth, int previewHeight, int targetWidth, int targetHeight, int jpegQuality) {
+    public static BitmapCreateThread getInstance(byte[] yuvDataArray, BitmapRenderer renderer, int previewWidth, int previewHeight, int targetWidth, int targetHeight, int jpegQuality, boolean useRgb) {
 
         if(instanceCounter >= MAX_INSTANCES) {
             Log.d("BitmapCreateThread", "Thread Creation blocked, because we reached our MAX_INSTANCES.");
@@ -75,6 +76,7 @@ public class BitmapCreateThread implements Runnable {
 
         instance.setJpegQuality(jpegQuality);
         instance.setRenderer(renderer);
+        instance.setUseRgb(useRgb);
 
         return instance;
     }
@@ -105,28 +107,74 @@ public class BitmapCreateThread implements Runnable {
      * @return the resulting bitmap.
      */
     protected Bitmap createBitmap(byte[] yuvData) {
-        long startTimeComplete = System.currentTimeMillis();
-
         YuvImage yuvImage = new YuvImage(yuvData, ImageFormat.NV21, previewWidth, previewHeight, null);
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        // here start the time-consuming functions:
-        //long startTimeCreateJpeg = System.currentTimeMillis();
-        yuvImage.compressToJpeg(new Rect(0, 0, previewWidth, previewHeight), jpegQuality, byteArrayOutputStream);
-        Log.d("BitmapCreateThread", "YUV compressToJpeg. byteArray Size"+byteArrayOutputStream.size());
 
-        // this is your rendered Bitmap which has the same size as the camera preview,
-        // but we want it to have the full screen size.
-        //long startTimeDecode = System.currentTimeMillis();
-        Bitmap bitmap = BitmapFactory.decodeByteArray(byteArrayOutputStream.toByteArray(), 0, byteArrayOutputStream.size());
-        //Log.d("BitmapCreateThread", "BitmapFactory.decodeByteArray in "+Long.toString(System.currentTimeMillis()-startTimeDecode)+"ms");
+        Bitmap editedBitmap = Bitmap.createBitmap(previewWidth, previewHeight, android.graphics.Bitmap.Config.ARGB_8888);
 
-        // so we have to convert it again:
-        //long startTimeScale = System.currentTimeMillis();
-        bitmap = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true);
-        //Log.d("BitmapCreateThread", "Bitmap scaled in "+Long.toString(System.currentTimeMillis()-startTimeScale)+"ms");
+        // greyscale bitmap rendering is a bit faster than yuv-to-rgb convert.
+        int[] rgbData;
+        if(!useRgb) rgbData = this.decodeGreyscale(yuvData, previewWidth, previewHeight);
+        else rgbData = this.decodeYuvToRgb(yuvData, previewWidth, previewHeight);
 
-        Log.d("BitmapCreateThread", "Bitmap completely created - "+Long.toString(1000/(System.currentTimeMillis()-startTimeComplete))+" FPS");
-        return bitmap;
+        editedBitmap.setPixels(rgbData, 0, previewWidth, 0, 0, previewWidth, previewHeight);
+
+        // Why should we do this?
+        // Bitmap bitmap = Bitmap.createBitmap(editedBitmap, 0, 0, previewWidth, previewHeight, null, true);
+        editedBitmap = Bitmap.createScaledBitmap(editedBitmap, targetWidth, targetHeight, true);
+
+        return editedBitmap;
+    }
+
+    /**
+     * @source http://stackoverflow.com/a/29963291
+     * @param nv21
+     * @param width
+     * @param height
+     * @return
+     */
+    private int[] decodeGreyscale(byte[] nv21, int width, int height) {
+        int pixelCount = width * height;
+        int[] out = new int[pixelCount];
+        for (int i = 0; i < pixelCount; ++i) {
+            int luminance = nv21[i] & 0xFF;
+            // out[i] = Color.argb(0xFF, luminance, luminance, luminance);
+            out[i] = 0xff000000 | luminance <<16 | luminance <<8 | luminance;//No need to create Color object for each.
+        }
+        return out;
+    }
+
+    /**
+     * decodes YUV to RGB
+     * @source https://stackoverflow.com/questions/8350230/android-how-to-display-camera-preview-with-callback
+     * @param nv21
+     * @param width
+     * @param height
+     * @return
+     */
+    private int[] decodeYuvToRgb(byte[] nv21, int width, int height) {
+        int frameSize = width * height;
+        int[] rgba = new int[frameSize + 1];
+
+        // Convert YUV to RGB
+        for (int i = 0; i < height; i++)
+            for (int j = 0; j < width; j++) {
+                int y = (0xff & ((int) nv21[i * width + j]));
+                int u = (0xff & ((int) nv21[frameSize + (i >> 1) * width + (j & ~1) + 0]));
+                int v = (0xff & ((int) nv21[frameSize + (i >> 1) * width + (j & ~1) + 1]));
+                y = y < 16 ? 16 : y;
+
+                int r = Math.round(1.164f * (y - 16) + 1.596f * (v - 128));
+                int g = Math.round(1.164f * (y - 16) - 0.813f * (v - 128) - 0.391f * (u - 128));
+                int b = Math.round(1.164f * (y - 16) + 2.018f * (u - 128));
+
+                r = r < 0 ? 0 : (r > 255 ? 255 : r);
+                g = g < 0 ? 0 : (g > 255 ? 255 : g);
+                b = b < 0 ? 0 : (b > 255 ? 255 : b);
+
+                rgba[i * width + j] = 0xff000000 + (b << 16) + (g << 8) + r;
+            }
+
+        return rgba;
     }
 
     /**
@@ -158,5 +206,9 @@ public class BitmapCreateThread implements Runnable {
 
     public void setTargetHeight(int targetHeight) {
         this.targetHeight = targetHeight;
+    }
+
+    public void setUseRgb(boolean useRgb) {
+        this.useRgb = useRgb;
     }
 }
