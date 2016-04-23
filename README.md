@@ -37,6 +37,14 @@ This is the offical android version of the visor app - the low vision magnifier.
 
 ## Changelog
 
+Version 1.3.0 (2016-04-23)
+
+- If no filter is selected the app now avoids to create a bitmap. This increases battery life and app performance.
+- The bitmap create thread now generates a s/w rgb representation because it's a bit faster and all color filter don't need a full color set.
+- Settings slightly optimized for some devices. On my LG G4 the performance is much better. Increased parallel thread count for bitmap creation.
+- Added a new button: Pause the camera image.
+- Additionally store the paused image to your device.
+
 Version 1.2.1 (2015-10-19)
 
 - (User-Request) the app now does not adjust the brightness level.
@@ -77,12 +85,6 @@ Version 0.1 (2015-07-30)
 - added button to toggle flashlight
 - added button to change up to 7 color modes.
 - added button to zoom through 4 magnification levels
-
-## Next Releases
-
-- freeze image (i.e. via double tap) and add digital zoom options (pinch to zoom)
-- add support for camera2 API for Lollipop and above to increase the performance
-- add mirroring via chromecast, dlna or airplay
 
 ## Licence
 
