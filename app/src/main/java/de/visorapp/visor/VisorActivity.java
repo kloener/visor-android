@@ -48,6 +48,11 @@ public class VisorActivity extends Activity {
     private VisorSurface mVisorView;
 
     /**
+     * stores the pause button state to replace the image inside of it.
+     */
+    private boolean pauseButtonState = true;
+
+    /**
      * stores the brightness level of the screen to restore it after the
      * app gets paused or destroyed.
      */
@@ -63,6 +68,20 @@ public class VisorActivity extends Activity {
         @Override
         public void onClick(View v) {
             mVisorView.toggleColorMode();
+        }
+    };
+    private View.OnClickListener pauseClickHandler = new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            mVisorView.toggleCameraPreview();
+            ImageButton btn = (ImageButton) v;
+            if(pauseButtonState)
+                btn.setImageResource(R.drawable.ic_play_arrow_black_48dp);
+            else
+                btn.setImageResource(R.drawable.ic_pause_black_48dp);
+
+            // btn.invalidateDrawable(null);
+            pauseButtonState = !pauseButtonState;
         }
     };
     private View.OnClickListener flashLightClickHandler = new View.OnClickListener() {
@@ -162,6 +181,9 @@ public class VisorActivity extends Activity {
         // Add a listener to the Flash button
         ImageButton colorButton = (ImageButton) findViewById(R.id.button_color);
         colorButton.setOnClickListener(colorModeClickHandler);
+
+        ImageButton pauseButton = (ImageButton) findViewById(R.id.button_pause);
+        pauseButton.setOnClickListener(pauseClickHandler);
 
         mVisorView.setZoomButton(zoomButton);
         mVisorView.setFlashButton(flashButton);

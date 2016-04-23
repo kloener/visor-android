@@ -31,7 +31,7 @@ public class BitmapCreateThread implements Runnable {
      * New Info:
      * On my new telephone LG G4 it works much better with a higher instances value.
      */
-    private static final int MAX_INSTANCES = 24;
+    private static final int MAX_INSTANCES = 10;
 
     /**
      * count all instances.
@@ -105,35 +105,21 @@ public class BitmapCreateThread implements Runnable {
      * @return the resulting bitmap.
      */
     protected Bitmap createBitmap(byte[] yuvData) {
-        long startTimeComplete = System.currentTimeMillis();
-
         YuvImage yuvImage = new YuvImage(yuvData, ImageFormat.NV21, previewWidth, previewHeight, null);
 
         Bitmap editedBitmap = Bitmap.createBitmap(previewWidth, previewHeight, android.graphics.Bitmap.Config.ARGB_8888);
+
+        // greyscale bitmap rendering is a bit faster than yuv-to-rgb convert.
         int[] rgbData = this.decodeGreyscale(yuvData, previewWidth, previewHeight);
+        // int[] rgbData = this.decodeYuvToRgb(yuvData, previewWidth, previewHeight);
+
         editedBitmap.setPixels(rgbData, 0, previewWidth, 0, 0, previewWidth, previewHeight);
-        Bitmap bitmap = Bitmap.createBitmap(editedBitmap, 0, 0, previewWidth, previewHeight, null, true);
 
+        // Why should we do this?
+        // Bitmap bitmap = Bitmap.createBitmap(editedBitmap, 0, 0, previewWidth, previewHeight, null, true);
+        editedBitmap = Bitmap.createScaledBitmap(editedBitmap, targetWidth, targetHeight, true);
 
-        //ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        // here start the time-consuming functions:
-        //long startTimeCreateJpeg = System.currentTimeMillis();
-        //yuvImage.compressToJpeg(new Rect(0, 0, previewWidth, previewHeight), jpegQuality, byteArrayOutputStream);
-        //Log.d("BitmapCreateThread", "YUV compressToJpeg. byteArray Size"+byteArrayOutputStream.size());
-
-        // this is your rendered Bitmap which has the same size as the camera preview,
-        // but we want it to have the full screen size.
-        //long startTimeDecode = System.currentTimeMillis();
-        //Bitmap bitmap = BitmapFactory.decodeByteArray(byteArrayOutputStream.toByteArray(), 0, byteArrayOutputStream.size());
-        //Log.d("BitmapCreateThread", "BitmapFactory.decodeByteArray in "+Long.toString(System.currentTimeMillis()-startTimeDecode)+"ms");
-
-        // so we have to convert it again:
-        //long startTimeScale = System.currentTimeMillis();
-        bitmap = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true);
-        //Log.d("BitmapCreateThread", "Bitmap scaled in "+Long.toString(System.currentTimeMillis()-startTimeScale)+"ms");
-
-        Log.d("BitmapCreateThread", "Bitmap completely created - "+Long.toString(1000/(System.currentTimeMillis()-startTimeComplete))+" FPS");
-        return bitmap;
+        return editedBitmap;
     }
 
     /**
@@ -152,6 +138,40 @@ public class BitmapCreateThread implements Runnable {
             out[i] = 0xff000000 | luminance <<16 | luminance <<8 | luminance;//No need to create Color object for each.
         }
         return out;
+    }
+
+    /**
+     * decodes YUV to RGB
+     * @source https://stackoverflow.com/questions/8350230/android-how-to-display-camera-preview-with-callback
+     * @param nv21
+     * @param width
+     * @param height
+     * @return
+     */
+    private int[] decodeYuvToRgb(byte[] nv21, int width, int height) {
+        int frameSize = width * height;
+        int[] rgba = new int[frameSize + 1];
+
+        // Convert YUV to RGB
+        for (int i = 0; i < height; i++)
+            for (int j = 0; j < width; j++) {
+                int y = (0xff & ((int) nv21[i * width + j]));
+                int u = (0xff & ((int) nv21[frameSize + (i >> 1) * width + (j & ~1) + 0]));
+                int v = (0xff & ((int) nv21[frameSize + (i >> 1) * width + (j & ~1) + 1]));
+                y = y < 16 ? 16 : y;
+
+                int r = Math.round(1.164f * (y - 16) + 1.596f * (v - 128));
+                int g = Math.round(1.164f * (y - 16) - 0.813f * (v - 128) - 0.391f * (u - 128));
+                int b = Math.round(1.164f * (y - 16) + 2.018f * (u - 128));
+
+                r = r < 0 ? 0 : (r > 255 ? 255 : r);
+                g = g < 0 ? 0 : (g > 255 ? 255 : g);
+                b = b < 0 ? 0 : (b > 255 ? 255 : b);
+
+                rgba[i * width + j] = 0xff000000 + (b << 16) + (g << 8) + r;
+            }
+
+        return rgba;
     }
 
     /**
