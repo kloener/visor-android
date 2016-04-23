@@ -31,7 +31,7 @@ public class BitmapCreateThread implements Runnable {
      * New Info:
      * On my new telephone LG G4 it works much better with a higher instances value.
      */
-    private static final int MAX_INSTANCES = 10;
+    private static final int MAX_INSTANCES = 4;
 
     /**
      * count all instances.
@@ -63,8 +63,10 @@ public class BitmapCreateThread implements Runnable {
             return null;
         }
 
+
         BitmapCreateThread instance = new BitmapCreateThread();
         instanceCounter++;
+        Log.d("BitmapCreateThread", "BitmapCreateThreads: "+instanceCounter);
 
         instance.setYuvDataArray(yuvDataArray);
 

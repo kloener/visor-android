@@ -503,11 +503,13 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     public void toggleCameraPreview() {
         mState = (mState == STATE_PREVIEW ? STATE_OPENED : STATE_PREVIEW);
         if (mState == STATE_PREVIEW) {
-
             mCamera.startPreview();
+
+            if(mCameraFlashMode == true) turnFlashlightOn();
             return;
         }
 
+        turnFlashlightOff();
         mCamera.stopPreview();
 
         // run create thread otherwise we could see an old image.
@@ -549,29 +551,51 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      */
     public void nextFlashlightMode(Context context) {
         if (mState != STATE_PREVIEW) return;
-        boolean hasFlash = context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH);
+
+        mCameraFlashMode = !mCameraFlashMode;
+        if (mCameraFlashMode == true) {
+            turnFlashlightOn();
+        } else {
+            turnFlashlightOff();
+        }
+    }
+
+    private void turnFlashlightOff() {
+        if (mState != STATE_PREVIEW || !supportsFlashlight()) return;
+        Camera.Parameters parameters = mCamera.getParameters();
+        parameters.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
+        mCamera.setParameters(parameters);
+    }
+
+    private void turnFlashlightOn() {
+        if (mState != STATE_PREVIEW || !supportsFlashlight()) return;
+        Camera.Parameters parameters = mCamera.getParameters();
+        parameters.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
+        mCamera.setParameters(parameters);
+    }
+
+
+    /**
+     * true of the current devices has a flash.
+     * @return true if flash is supported
+     */
+    private boolean supportsFlashlight() {
+        boolean hasFlash = getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH);
 
         if (hasFlash == false) {
-            Log.e(TAG, "the current device does not have a flashlight!");
-            return;
+            // Log.e(TAG, "the current device does not have a flashlight!");
+            return false;
         }
 
         Camera.Parameters parameters = mCamera.getParameters();
         List<String> supportedFlashModes = parameters.getSupportedFlashModes();
         // 2015-08-20 Fix: Some devices/android versions return NULL instead of an list object.
         if (supportedFlashModes == null || !supportedFlashModes.contains(Camera.Parameters.FLASH_MODE_TORCH)) {
-            Log.e(TAG, "the current device does not support flashlight mode TORCH.");
-            return;
-        }
-        mCameraFlashMode = !mCameraFlashMode;
-
-        if (mCameraFlashMode == true) {
-            parameters.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
-        } else {
-            parameters.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
+            // Log.e(TAG, "the current device does not support flashlight mode TORCH.");
+            return false;
         }
 
-        mCamera.setParameters(parameters);
+        return true;
     }
 
     /**
@@ -662,9 +686,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * @param bitmap
      */
     public void renderBitmap(Bitmap bitmap) {
-        /*if (mCameraPreviewBitmapBuffer != null && !mCameraPreviewBitmapBuffer.isRecycled()) {
-            mCameraPreviewBitmapBuffer.recycle();
-            mCameraPreviewBitmapBuffer = null;
+        /*synchronized (this) {
+            if (mCameraPreviewBitmapBuffer != null && !mCameraPreviewBitmapBuffer.isRecycled()) {
+                mCameraPreviewBitmapBuffer.recycle();
+                mCameraPreviewBitmapBuffer = null;
+            }
         }*/
         mCameraPreviewBitmapBuffer = bitmap;
 
@@ -746,9 +772,9 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     }
 
     public Bitmap getBitmap() {
-        getRootView().buildDrawingCache();
-        final Bitmap bitmap = Bitmap.createBitmap( getRootView().getDrawingCache() );
-        getRootView().destroyDrawingCache();
+        buildDrawingCache();
+        final Bitmap bitmap = Bitmap.createBitmap( getDrawingCache() );
+        destroyDrawingCache();
         return bitmap;
         // return mCameraPreviewBitmapBuffer;
     }
