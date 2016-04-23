@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
@@ -84,10 +85,14 @@ public class VisorActivity extends Activity {
             ImageButton btn = (ImageButton) v;
             if(cameraPreviewState) {
                 btn.setImageResource(R.drawable.ic_play_arrow_black_48dp);
-                mZoomButton.setImageResource(R.drawable.ic_file_download_black_48dp);
+                mZoomButton.setImageResource(R.drawable.ic_photo_camera_black_48dp);
+                mFlashButton.setAlpha(64);
+                mFlashButton.getBackground().setAlpha(64);
             } else {
                 btn.setImageResource(R.drawable.ic_pause_black_48dp);
                 mZoomButton.setImageResource(R.drawable.ic_add_black_48dp);
+                mFlashButton.setAlpha(255);
+                mFlashButton.getBackground().setAlpha(255);
             }
 
             // btn.invalidateDrawable(null);
@@ -124,6 +129,7 @@ public class VisorActivity extends Activity {
      */
     private ImageButton mZoomButton;
     private ImageButton mPauseButton;
+    private ImageButton mFlashButton;
 
     /**
      * sends a {@link Toast} message to the user and quits the app immediately.
@@ -176,7 +182,6 @@ public class VisorActivity extends Activity {
         filterList.add(VisorSurface.YELLOW_BLUE_COLOR_FILTER);
 
         mVisorView.setCameraColorFilters(filterList);
-
         FrameLayout previewLayout = (FrameLayout) findViewById(R.id.camera_preview);
         previewLayout.addView(mVisorView);
 
@@ -212,6 +217,7 @@ public class VisorActivity extends Activity {
 
         mZoomButton = zoomButton;
         mPauseButton = pauseButton;
+        mFlashButton = flashButton;
     }
 
     @Override
@@ -237,6 +243,8 @@ public class VisorActivity extends Activity {
             cameraPreviewState = true;
             mZoomButton.setImageResource(R.drawable.ic_add_black_48dp);
             mPauseButton.setImageResource(R.drawable.ic_pause_black_48dp);
+            mFlashButton.setAlpha(255);
+            mFlashButton.getBackground().setAlpha(255);
         }
 
         // 2015-10-19 ChangeRequest: Some users have problems with the high brightness value.

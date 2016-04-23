@@ -240,7 +240,6 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         Display mDisplay = ((Activity) context).getWindowManager().getDefaultDisplay();
 
         Point sizePoint = new Point();
-        setDrawingCacheEnabled(true);
 
         mDisplay.getSize(sizePoint);
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR1) {
@@ -253,6 +252,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
         //we have to set this if we're using our own onDraw method
         setWillNotDraw(false);
+        setDrawingCacheEnabled(true);
 
         mCamera = null;
 
@@ -503,6 +503,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     public void toggleCameraPreview() {
         mState = (mState == STATE_PREVIEW ? STATE_OPENED : STATE_PREVIEW);
         if (mState == STATE_PREVIEW) {
+
             mCamera.startPreview();
             return;
         }
@@ -687,8 +688,9 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
          * Description:
          * If the state is opened the preview is probably paused
          */
-        if( (mState== STATE_PREVIEW && hasActiveFilterEnabled()) || mState == STATE_OPENED)
+        if( (mState== STATE_PREVIEW && hasActiveFilterEnabled()) || mState == STATE_OPENED) {
             canvas.drawBitmap(mCameraPreviewBitmapBuffer, 0, 0, mColorFilterPaint);
+        }
     }
 
     /**
@@ -744,8 +746,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     }
 
     public Bitmap getBitmap() {
-        // return getDrawingCache();
-        return mCameraPreviewBitmapBuffer;
+        getRootView().buildDrawingCache();
+        final Bitmap bitmap = Bitmap.createBitmap( getRootView().getDrawingCache() );
+        getRootView().destroyDrawingCache();
+        return bitmap;
+        // return mCameraPreviewBitmapBuffer;
     }
 
     public void pausePreviewIfReady() {
