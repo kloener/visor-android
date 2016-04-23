@@ -253,6 +253,9 @@ public class VisorActivity extends Activity {
         Log.d(TAG, "onResume called!");
     }
 
+    /**
+     * @source https://stackoverflow.com/questions/2661536/how-to-programmatically-take-a-screenshot-in-android#5651242
+     */
     private void takeScreenshot() {
         Date now = new Date();
         android.text.format.DateFormat.format("yyyy-MM-dd_hh:mm:ss", now);
@@ -290,6 +293,9 @@ public class VisorActivity extends Activity {
         }
     }
 
+    /**
+     * @source https://stackoverflow.com/questions/2661536/how-to-programmatically-take-a-screenshot-in-android#5651242
+     */
     private void openScreenshot(File imageFile) {
         Intent intent = new Intent();
         intent.setAction(Intent.ACTION_VIEW);
