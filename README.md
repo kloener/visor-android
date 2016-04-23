@@ -80,8 +80,11 @@ Version 0.1 (2015-07-30)
 
 ## Next Releases
 
-- freeze image (i.e. via double tap) and add digital zoom options (pinch to zoom)
-- add support for camera2 API for Lollipop and above to increase the performance
+- Fix bug #3: setting display orientation correctly
+- freeze image (i.e. via double tap) with the current color-filter and add digital zoom options (i.e. pinch to zoom)
+  - the image should have to max possible resolution of the camera
+  - the user should be able to store the image (zoomed or full) on his device
+- add support for camera2 API for Lollipop (and above) to increase the overall performance
 - add mirroring via chromecast, dlna or airplay
 
 ## Licence
