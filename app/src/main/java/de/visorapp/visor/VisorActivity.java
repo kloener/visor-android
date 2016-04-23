@@ -22,7 +22,6 @@ import java.util.List;
 
 import de.visorapp.visor.filters.ColorFilter;
 
-
 /**
  */
 public class VisorActivity extends Activity {
@@ -85,7 +84,7 @@ public class VisorActivity extends Activity {
             ImageButton btn = (ImageButton) v;
             if(cameraPreviewState) {
                 btn.setImageResource(R.drawable.ic_play_arrow_black_48dp);
-                mZoomButton.setImageResource(R.drawable.ic_share_black_48dp);
+                mZoomButton.setImageResource(R.drawable.ic_file_download_black_48dp);
             } else {
                 btn.setImageResource(R.drawable.ic_pause_black_48dp);
                 mZoomButton.setImageResource(R.drawable.ic_add_black_48dp);
@@ -124,6 +123,7 @@ public class VisorActivity extends Activity {
      * Store the reference to swap the icon on it if we pause the preview.
      */
     private ImageButton mZoomButton;
+    private ImageButton mPauseButton;
 
     /**
      * sends a {@link Toast} message to the user and quits the app immediately.
@@ -185,6 +185,7 @@ public class VisorActivity extends Activity {
         // Add a listener to the Preview button
         mVisorView.setOnClickListener(autoFocusClickHandler);/**/
         mVisorView.setOnLongClickListener(tapAndHoldListener);
+
     }
 
     /**
@@ -210,6 +211,7 @@ public class VisorActivity extends Activity {
         mVisorView.setFlashButton(flashButton);
 
         mZoomButton = zoomButton;
+        mPauseButton = pauseButton;
     }
 
     @Override
@@ -231,6 +233,12 @@ public class VisorActivity extends Activity {
     protected void onResume() {
         super.onResume();
 
+        if(!cameraPreviewState) {
+            cameraPreviewState = true;
+            mZoomButton.setImageResource(R.drawable.ic_add_black_48dp);
+            mPauseButton.setImageResource(R.drawable.ic_pause_black_48dp);
+        }
+
         // 2015-10-19 ChangeRequest: Some users have problems with the high brightness value.
         //                           So the user now has to activly adjust the brightness.
         // setBrightnessToMaximum();
@@ -239,11 +247,11 @@ public class VisorActivity extends Activity {
 
     private void takeScreenshot() {
         Date now = new Date();
-        android.text.format.DateFormat.format("visor-android.app_yyyy-MM-dd_hh:mm:ss", now);
+        android.text.format.DateFormat.format("yyyy-MM-dd_hh:mm:ss", now);
 
         try {
             // image naming and path  to include sd card  appending name you choose for file
-            String mPath = Environment.getExternalStorageDirectory().toString() + "/" + now + ".jpg";
+            String mPath = Environment.getExternalStorageDirectory().toString() + "/visor-android.app_" + now + ".jpg";
 
             // create bitmap screen capture
             /*
@@ -258,10 +266,14 @@ public class VisorActivity extends Activity {
             File imageFile = new File(mPath);
 
             FileOutputStream outputStream = new FileOutputStream(imageFile);
-            int quality = 100;
+            final int quality = 90;
             bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream);
             outputStream.flush();
             outputStream.close();
+
+            int duration = Toast.LENGTH_SHORT;
+            Toast toasty = Toast.makeText(this, R.string.text_image_stored+mPath, duration);
+            toasty.show();
 
             openScreenshot(imageFile);
         } catch (Throwable e) {

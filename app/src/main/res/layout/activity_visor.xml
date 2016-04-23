@@ -49,7 +49,7 @@
         android:layout_alignWithParentIfMissing="false"
         android:layout_alignBaseline="@+id/button_zoom"
         android:layout_centerVertical="true"
-        android:layout_marginRight="16dp" />
+        android:layout_marginRight="8dp" />
 
     <ImageButton
         android:id="@+id/button_zoom"

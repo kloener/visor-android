@@ -7,6 +7,7 @@
     <string name="button_pause_description">fiert das aktuelle Bild ein</string>
     <string name="text_autofocus_enabled">Autofokus aktiviert.</string>
     <string name="text_autofocus_disabled">Autofokus deaktiviert. Antippen zum Fokussieren.</string>
+    <string name="text_image_stored">Bild gespeichert unter </string>
 
     <!-- Key names (equal in all languages) -->
     <string name="visor_shared_preference_name">VisorAndroidSharedPreference</string>

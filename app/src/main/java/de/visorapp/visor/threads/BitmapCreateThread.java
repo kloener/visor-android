@@ -48,6 +48,7 @@ public class BitmapCreateThread implements Runnable {
     private int jpegQuality;
     private BitmapRenderer renderer;
     private byte[] yuvDataArray;
+    private boolean useRgb;
 
     /**
      * returns an instance of the task
@@ -55,7 +56,7 @@ public class BitmapCreateThread implements Runnable {
      * @param renderer
      * @return
      */
-    public static BitmapCreateThread getInstance(byte[] yuvDataArray, BitmapRenderer renderer, int previewWidth, int previewHeight, int targetWidth, int targetHeight, int jpegQuality) {
+    public static BitmapCreateThread getInstance(byte[] yuvDataArray, BitmapRenderer renderer, int previewWidth, int previewHeight, int targetWidth, int targetHeight, int jpegQuality, boolean useRgb) {
 
         if(instanceCounter >= MAX_INSTANCES) {
             Log.d("BitmapCreateThread", "Thread Creation blocked, because we reached our MAX_INSTANCES.");
@@ -75,6 +76,7 @@ public class BitmapCreateThread implements Runnable {
 
         instance.setJpegQuality(jpegQuality);
         instance.setRenderer(renderer);
+        instance.setUseRgb(useRgb);
 
         return instance;
     }
@@ -110,8 +112,9 @@ public class BitmapCreateThread implements Runnable {
         Bitmap editedBitmap = Bitmap.createBitmap(previewWidth, previewHeight, android.graphics.Bitmap.Config.ARGB_8888);
 
         // greyscale bitmap rendering is a bit faster than yuv-to-rgb convert.
-        int[] rgbData = this.decodeGreyscale(yuvData, previewWidth, previewHeight);
-        // int[] rgbData = this.decodeYuvToRgb(yuvData, previewWidth, previewHeight);
+        int[] rgbData;
+        if(!useRgb) rgbData = this.decodeGreyscale(yuvData, previewWidth, previewHeight);
+        else rgbData = this.decodeYuvToRgb(yuvData, previewWidth, previewHeight);
 
         editedBitmap.setPixels(rgbData, 0, previewWidth, 0, 0, previewWidth, previewHeight);
 
@@ -203,5 +206,9 @@ public class BitmapCreateThread implements Runnable {
 
     public void setTargetHeight(int targetHeight) {
         this.targetHeight = targetHeight;
+    }
+
+    public void setUseRgb(boolean useRgb) {
+        this.useRgb = useRgb;
     }
 }

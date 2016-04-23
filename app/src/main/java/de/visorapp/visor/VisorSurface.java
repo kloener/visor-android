@@ -190,7 +190,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
                 return;
             }
 
-            runBitmapCreateThread();
+            runBitmapCreateThread(false);
             // we're on the ui thread here:
             // invalidate();
         }
@@ -213,6 +213,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * auto focus mode which was stored in the shared preferences.
      */
     private String storedAutoFocusMode;
+    private boolean mPauseOnReady = false;
 
     /**
      * @param context activity
@@ -443,6 +444,10 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
             toggleColorMode();
         }
 
+        if(mPauseOnReady) {
+            toggleCameraPreview();
+        }
+
         Log.d(TAG, "Thread done. Camera successfully started");
     }
 
@@ -503,6 +508,9 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         }
 
         mCamera.stopPreview();
+
+        // run create thread otherwise we could see an old image.
+        runBitmapCreateThread(true);
     }
 
     /**
@@ -624,7 +632,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         mColorFilterPaint.setColorFilter(colorFilter);
 
         if(mState == STATE_OPENED) {
-            runBitmapCreateThread();
+            runBitmapCreateThread(true);
         }
     }
 
@@ -632,7 +640,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * Runs a bitmap create thread with the current `mCameraPreviewBufferData`.
      * If finished, the thread calls `renderBitmap` with the final bitmap as the result.
      */
-    protected void runBitmapCreateThread() {
+    protected void runBitmapCreateThread(boolean rgb) {
         final BitmapCreateThread bitmapCreateThread = BitmapCreateThread.getInstance(
                 mCameraPreviewBufferData,
                 VisorSurface.this,
@@ -640,7 +648,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
                 mCameraPreviewHeight,
                 width,
                 height,
-                JPEG_QUALITY
+                JPEG_QUALITY,
+                rgb
         );
         if (bitmapCreateThread == null) return;
         new Thread(bitmapCreateThread).start();
@@ -735,6 +744,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     }
 
     public Bitmap getBitmap() {
-        return getDrawingCache();
+        // return getDrawingCache();
+        return mCameraPreviewBitmapBuffer;
+    }
+
+    public void pausePreviewIfReady() {
+        mPauseOnReady = true;
     }
 }
