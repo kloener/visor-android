@@ -5,7 +5,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
@@ -95,7 +94,6 @@ public class VisorActivity extends Activity {
                 mFlashButton.getBackground().setAlpha(255);
             }
 
-            // btn.invalidateDrawable(null);
             cameraPreviewState = !cameraPreviewState;
         }
     };

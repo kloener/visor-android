@@ -184,9 +184,12 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         @Override
         public void onPreviewFrame(final byte[] data, Camera camera) {
 
+            Log.d(TAG, "mCameraPreviewCallbackHandler Camera.PreviewCallback called");
+
             mCameraPreviewBufferData = data;
             if(!hasActiveFilterEnabled()) {
                 invalidate();
+                Log.d(TAG, "mCameraPreviewCallbackHandler Camera.PreviewCallback no active Filter found. Invalidate view.");
                 return;
             }
 
@@ -405,6 +408,14 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         mCameraPreviewHeight = size.height;
 
         parameters.setPreviewSize(mCameraPreviewWidth, mCameraPreviewHeight);
+
+
+        // Give the camera a hint that we're recording video.  This can have a big
+        // impact on frame rate.
+        parameters.setRecordingHint(true);
+
+        mCamera.setDisplayOrientation(0);
+
         mCamera.setParameters(parameters);
 
         // pre-define some variables for image processing.
@@ -477,6 +488,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
         Log.d(TAG, "called surfaceChanged");
+        enableCamera();
     }
 
     /**
@@ -502,14 +514,18 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      */
     public void toggleCameraPreview() {
         mState = (mState == STATE_PREVIEW ? STATE_OPENED : STATE_PREVIEW);
+
         if (mState == STATE_PREVIEW) {
+
+            // FIX: 20160508 On some devices it occured, that the callback handler wasn't called anymore.
+            mCamera.setPreviewCallback(mCameraPreviewCallbackHandler);
             mCamera.startPreview();
 
-            if(mCameraFlashMode == true) turnFlashlightOn();
+            // if(mCameraFlashMode == true) turnFlashlightOn();
             return;
         }
 
-        turnFlashlightOff();
+        // turnFlashlightOff();
         mCamera.stopPreview();
 
         // run create thread otherwise we could see an old image.
@@ -686,37 +702,38 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * @param bitmap
      */
     public void renderBitmap(Bitmap bitmap) {
-        /*synchronized (this) {
-            if (mCameraPreviewBitmapBuffer != null && !mCameraPreviewBitmapBuffer.isRecycled()) {
-                mCameraPreviewBitmapBuffer.recycle();
-                mCameraPreviewBitmapBuffer = null;
-            }
-        }*/
         mCameraPreviewBitmapBuffer = bitmap;
 
-        /**
-         */
         ((Activity) getContext()).runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 invalidate();
             }
         });
-        /**/
     }
 
     @Override
     public void onDraw(Canvas canvas) {
-        if (mState == STATE_CLOSED) return;
-        if (mCameraPreviewBitmapBuffer == null || mCameraPreviewBitmapBuffer.isRecycled()) return;
+        if (mState == STATE_CLOSED) {
+            Log.d(TAG, "onDraw called but the camera state seems to be closed.");
+            return;
+        }
+        if (mCameraPreviewBitmapBuffer == null || mCameraPreviewBitmapBuffer.isRecycled()) {
+            Log.d(TAG, "onDraw called but the Bitmap is null or recycled. Do nothing here.");
+            return;
+        }
+
+        if( ! ((mState == STATE_PREVIEW && hasActiveFilterEnabled()) || mState == STATE_OPENED)) {
+            Log.d(TAG, "onDraw called but the camera state is preview but no filter is enabled or the state is not open.");
+            return;
+        }
 
         /**
          * Description:
          * If the state is opened the preview is probably paused
          */
-        if( (mState== STATE_PREVIEW && hasActiveFilterEnabled()) || mState == STATE_OPENED) {
-            canvas.drawBitmap(mCameraPreviewBitmapBuffer, 0, 0, mColorFilterPaint);
-        }
+
+        canvas.drawBitmap(mCameraPreviewBitmapBuffer, 0, 0, mColorFilterPaint);
     }
 
     /**
