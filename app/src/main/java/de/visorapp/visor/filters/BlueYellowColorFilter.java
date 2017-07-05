@@ -9,7 +9,6 @@ public class BlueYellowColorFilter extends BlackWhiteColorFilter {
 
     @Override
     public void filter(ColorMatrix colorMatrix) {
-        float[] contrast = getContrastMatrix(CONTRAST_LEVEL);
         float[] blueYellowMatrix = getInvertedBlueYellowMatrix();
         colorMatrix.postConcat(new ColorMatrix(blueYellowMatrix));
     }

@@ -9,11 +9,15 @@ import android.graphics.Canvas;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.ImageFormat;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Point;
 import android.hardware.Camera;
+import android.media.MediaActionSound;
+import android.os.Build;
 import android.util.Log;
 import android.view.Display;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -31,6 +35,8 @@ import de.visorapp.visor.filters.NoColorFilter;
 import de.visorapp.visor.filters.WhiteBlackColorFilter;
 import de.visorapp.visor.filters.YellowBlueColorFilter;
 import de.visorapp.visor.threads.BitmapCreateThread;
+
+import static android.hardware.Camera.Parameters.FOCUS_MODE_AUTO;
 
 /**
  * Created by Christian Illies on 29.07.15.
@@ -51,27 +57,111 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * The jpeg quality which will be rendered for each camera preview image.
      * If the value is too high to performance decreased drastically.
      */
-    private static final int JPEG_QUALITY = 77;
+    public static final int JPEG_QUALITY = 90;
 
     /**
      * Camera state: Device is closed.
      */
-    private static final int STATE_CLOSED = 0;
+    public static final int STATE_CLOSED = 0;
 
     /**
      * Camera state: Device is opened, but is not capturing.
      */
-    private static final int STATE_OPENED = 1;
+    public static final int STATE_OPENED = 1;
 
     /**
      * Camera state: Showing camera preview.
      */
-    private static final int STATE_PREVIEW = 2;
+    public static final int STATE_PREVIEW = 2;
 
     /**
      * Max width for the camera preview to avoid performance and ram/cache issues.
+     * TODO should be configurable by a settings-activity! (feature)
      */
-    private static final int MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH = 800;
+    private static final int MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH = 1024;
+
+    private MediaActionSound mSound = null;
+
+    @Override
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        // super.onLayout(changed, left, top, right, bottom);
+        if (changed) {
+            keepCameraAspectRatioInView(this, left, top, right, bottom);
+        }
+    }
+
+    /**
+     * method to fix layout aspect ratio to fit camera's.
+     *
+     * FIXME This only effects to camera preview with no filter!
+     *
+     * @source https://stackoverflow.com/questions/12751016/android-camera-preview-look-strange
+     *
+     * @param child the view were the layout should be fixed.
+     * @param left
+     * @param top
+     * @param right
+     * @param bottom
+     */
+    private void keepCameraAspectRatioInView(View child, int left, int top, int right, int bottom) {
+
+        Log.d(TAG.concat(":keepCameraAspectRatioInView:before"), String.valueOf(left).concat(" ").concat(String.valueOf(right)).concat(" ").concat(String.valueOf(top)).concat(" ").concat(String.valueOf(bottom)));
+
+        final int width = right - left;
+        final int height = bottom - top;
+
+        int previewWidth/* = width*/;
+        int previewHeight/* = height*/;
+
+        previewWidth = mCameraPreviewWidth;
+        if(previewWidth == 0) previewWidth = width;
+        previewHeight = mCameraPreviewHeight;
+        if(previewHeight == 0) previewHeight = height;
+
+        // Center the child SurfaceView within the parent.
+        if (width * previewHeight < height * previewWidth) {
+
+            // abort if height is 0
+            if(previewHeight == 0) return;
+
+            final int scaledChildWidth = previewWidth * height / previewHeight;
+
+            left = (width - scaledChildWidth) / 2;
+            top = 0;
+            right = (width + scaledChildWidth) / 2;
+            bottom = height;
+
+            child.layout(left, top, right, bottom);
+        } else {
+
+            // abort if width is 0
+            if(previewWidth == 0) return;
+
+            final int scaledChildHeight = previewHeight * width / previewWidth;
+
+            left = 0;
+            top = (height - scaledChildHeight) / 2;
+            right = width;
+            bottom = (height + scaledChildHeight) / 2;
+
+            child.layout(left, top, right, bottom);
+        }
+
+        // re-scale matrix with given values
+        final float tmpScaleX = (right - left) / (float) previewWidth;
+        final float tmpScaleY = (bottom - top) / (float) previewHeight;
+
+        if(tmpScaleX != scaleX || tmpScaleY != scaleY) {
+            scaleX = tmpScaleX;
+            scaleY = tmpScaleY;
+            if(scaleMatrix == null) scaleMatrix = new Matrix();
+            scaleMatrix.setScale(scaleX, scaleY, 0, 0);
+
+            Log.d(TAG.concat(":keepCameraAspectRatioInView:scalingMatrix"), String.valueOf(scaleX).concat(" ").concat(String.valueOf(scaleY)));
+        }
+
+        Log.d(TAG.concat(":keepCameraAspectRatioInView:after"), String.valueOf(left).concat(" ").concat(String.valueOf(right)).concat(" ").concat(String.valueOf(top)).concat(" ").concat(String.valueOf(bottom)));
+    }
 
     /**
      *
@@ -129,7 +219,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * the current state of the camera device.
      * i.e. open, closed or preview.
      */
-    private int mState;
+    public int mState;
 
 
     /**
@@ -169,6 +259,12 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * stores the YUV image (format NV21) when onPreviewFrame was called
      */
     private byte[] mCameraPreviewBufferData;
+    /**
+     * stores the `mCameraPreviewBufferData` as rgb.
+     *
+     * @see BitmapCreateThread
+     */
+    private int[] mCameraPreviewRgb;
 
     /**
      * after the onPreviewFrame was called we'll generate a
@@ -184,30 +280,28 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         @Override
         public void onPreviewFrame(final byte[] data, Camera camera) {
 
-            Log.d(TAG, "mCameraPreviewCallbackHandler Camera.PreviewCallback called");
+            // Log.d(TAG, "mCameraPreviewCallbackHandler Camera.PreviewCallback called");
 
             mCameraPreviewBufferData = data;
-            if(!hasActiveFilterEnabled()) {
+            if (!hasActiveFilterEnabled()) {
                 invalidate();
-                Log.d(TAG, "mCameraPreviewCallbackHandler Camera.PreviewCallback no active Filter found. Invalidate view.");
+                //Log.d(TAG, "mCameraPreviewCallbackHandler Camera.PreviewCallback no active Filter found. Invalidate view.");
                 return;
             }
 
             runBitmapCreateThread(false);
-            // we're on the ui thread here:
-            // invalidate();
         }
     };
     /**
      * reference to the zoom button.
-     *
+     * <p>
      * We hide the zoom Button if zoom is not supported
      * by the device camera.
      */
     private View zoomButtonView;
     /**
      * reference to the flash button.
-     *
+     * <p>
      * We hide the flash button if flashlight isn't supported.
      */
     private View flashButtonView;
@@ -217,6 +311,15 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      */
     private String storedAutoFocusMode;
     private boolean mPauseOnReady = false;
+    private static int mCameraId;
+
+    /**
+     * Image Scaling costs much cpu and memory.
+     * We store the values here for use in onDraw:
+     */
+    private float scaleX;
+    private float scaleY;
+    private Matrix scaleMatrix;
 
     /**
      * @param context activity
@@ -233,7 +336,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         SharedPreferences sharedPreferences = context.getSharedPreferences(String.valueOf(R.string.visor_shared_preference_name), Context.MODE_PRIVATE);
         mCameraCurrentZoomLevel = sharedPreferences.getInt(String.valueOf(R.string.key_preference_zoom_level), mCameraCurrentZoomLevel);
         mCurrentColorFilterIndex = sharedPreferences.getInt(String.valueOf(R.string.key_preference_color_mode), mCurrentColorFilterIndex);
-        storedAutoFocusMode = sharedPreferences.getString(String.valueOf(R.string.key_preference_autofocus_mode), Camera.Parameters.FOCUS_MODE_AUTO);
+        storedAutoFocusMode = sharedPreferences.getString(String.valueOf(R.string.key_preference_autofocus_mode), FOCUS_MODE_AUTO);
 
         mCameraFlashMode = false;
         mColorFilterPaint = new Paint();
@@ -290,6 +393,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
             // try another one.
             c = getCameraInstance(++cameraId);
         }
+
+        VisorSurface.mCameraId = cameraId;
         return c; // returns null if camera is unavailable
     }
 
@@ -312,14 +417,25 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     public void surfaceDestroyed(SurfaceHolder holder) {
         Log.d(TAG, "called surfaceDestroyed. Storing settings");
 
+        String currentFocusMode = FOCUS_MODE_AUTO;
+
+        if (mCamera != null) {
+            try {
+                Camera.Parameters params = mCamera.getParameters();
+                currentFocusMode = params.getFocusMode();
+            } catch (Exception ex) {
+                currentFocusMode = FOCUS_MODE_AUTO;
+            }
+        }
+
         SharedPreferences sharedPreferences = this.getContext().getSharedPreferences(String.valueOf(R.string.visor_shared_preference_name), Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
 
         editor.putInt(String.valueOf(R.string.key_preference_zoom_level), mCameraCurrentZoomLevel);
         editor.putInt(String.valueOf(R.string.key_preference_color_mode), mCurrentColorFilterIndex);
-        editor.putString(String.valueOf(R.string.key_preference_autofocus_mode), mCamera.getParameters().getFocusMode());
+        editor.putString(String.valueOf(R.string.key_preference_autofocus_mode), currentFocusMode);
 
-        editor.commit();
+        editor.apply();
 
         releaseCamera();
     }
@@ -371,7 +487,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      */
     // public void enableCamera() throws NoCameraSizesFoundException, CameraCouldNotOpenedException {
     public void enableCamera() {
-        if (mState == STATE_PREVIEW) return;
+        if (mState != STATE_CLOSED) return;
         // startBackgroundThread();
 
         // mBackgroundHandler.post(new Runnable() {
@@ -393,7 +509,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         }
         Camera.Size size = getBestPreviewSize(parameters);
 
-        if(!getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH)) {
+        if (!getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH)) {
             getFlashButtonView().setVisibility(View.INVISIBLE);
         }
 
@@ -406,20 +522,37 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
         mCameraPreviewWidth = size.width;
         mCameraPreviewHeight = size.height;
-
         parameters.setPreviewSize(mCameraPreviewWidth, mCameraPreviewHeight);
 
+        mCameraPreviewBitmapBuffer = Bitmap.createBitmap(mCameraPreviewWidth, mCameraPreviewHeight, android.graphics.Bitmap.Config.ARGB_8888);
+
+        /**
+         * this creation is here just to be sure a scaleMatrix is created.
+         *
+         * The method "onLayout" should be called before this method, so we always should have a valid scaleMatrix!
+         * May be these lines can be removed if we're sure that it will never get needed.
+         *
+         */
+        if(scaleMatrix == null) {
+            scaleX = width / (float) mCameraPreviewWidth;
+            scaleY = height / (float) mCameraPreviewHeight;
+            Log.w(TAG, "Matrix scaled created before onLayout was called");
+            scaleMatrix = new Matrix();
+            scaleMatrix.setScale(scaleX, scaleY, 0, 0);
+        }
 
         // Give the camera a hint that we're recording video.  This can have a big
         // impact on frame rate.
         parameters.setRecordingHint(true);
 
-        mCamera.setDisplayOrientation(0);
+        //mCamera.setDisplayOrientation(0);
+        setCameraDisplayOrientation((Activity) getContext());
 
         mCamera.setParameters(parameters);
 
         // pre-define some variables for image processing.
         mCameraPreviewBufferData = new byte[mCameraPreviewWidth * mCameraPreviewHeight * 3 / 2];
+        mCameraPreviewRgb = new int[mCameraPreviewWidth * mCameraPreviewHeight];
 
         // The Surface has been created, now tell the
         // camera where to draw the preview.
@@ -432,34 +565,70 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         }
         /**/
         mCamera.setPreviewCallback(mCameraPreviewCallbackHandler);
+
+        // NOTE it's possible that an RuntimeException is thrown here.
+        // @see https://play.google.com/apps/publish/?#AndroidMetricsErrorsPlace:p=de.visorapp.visor&appVersion=PRODUCTION&lastReportedRange=LAST_60_DAYS&clusterName=apps/de.visorapp.visor/clusters/61aebe9b
         mCamera.startPreview();
+
         mState = STATE_PREVIEW;
 
-        if(!storedAutoFocusMode.equals(Camera.Parameters.FOCUS_MODE_AUTO)) {
+        if (!storedAutoFocusMode.equals(FOCUS_MODE_AUTO)) {
             toggleAutoFocusMode();
         }
 
         // start with the first zoom level.
         // init zoom level member attr.
-        if(mCameraCurrentZoomLevel == 0) {
+        if (mCameraCurrentZoomLevel == 0) {
             mCameraCurrentZoomLevel = mCameraMaxZoomLevel;
             nextZoomLevel();
         } else {
             setCameraZoomLevel(mCameraCurrentZoomLevel);
         }
 
-        if(mCurrentColorFilterIndex > 0) {
+        if (mCurrentColorFilterIndex > 0) {
             mCurrentColorFilterIndex--;
             // decrease index because
             // the toggle causes the increment
             toggleColorMode();
         }
 
-        if(mPauseOnReady) {
+        if (mPauseOnReady && mCamera != null) {
             toggleCameraPreview();
         }
 
+        autoFocusCamera();
+
         Log.d(TAG, "Thread done. Camera successfully started");
+    }
+
+    public void setCameraDisplayOrientation(Activity activity) {
+        Camera.CameraInfo info = new Camera.CameraInfo();
+        Camera.getCameraInfo(mCameraId, info);
+        int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
+        int degrees = 0;
+        switch (rotation) {
+            case Surface.ROTATION_0:
+                degrees = 0;
+                break;
+            case Surface.ROTATION_90:
+                degrees = 90;
+                break;
+            case Surface.ROTATION_180:
+                degrees = 180;
+                break;
+            case Surface.ROTATION_270:
+                degrees = 270;
+                break;
+        }
+
+        int result;
+        if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+            result = (info.orientation + degrees) % 360;
+            result = (360 - result) % 360;  // compensate the mirror
+        } else {  // back-facing
+            result = (info.orientation - degrees + 360) % 360;
+        }
+        mCamera.setDisplayOrientation(result);
     }
 
     /**
@@ -491,21 +660,58 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         enableCamera();
     }
 
+    public MediaActionSound getMediaActionSound() {
+        if (mSound == null && android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            mSound = new MediaActionSound();
+            mSound.load(MediaActionSound.START_VIDEO_RECORDING);
+            mSound.load(MediaActionSound.STOP_VIDEO_RECORDING);
+            mSound.load(MediaActionSound.FOCUS_COMPLETE);
+        }
+        return mSound;
+    }
+
+    public void playActionSoundAutofocusComplete() {
+        MediaActionSound player = getMediaActionSound();
+        if (player == null) return;
+        if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN) return;
+        player.play(MediaActionSound.FOCUS_COMPLETE);
+    }
+
+    public void playActionSoundShutter() {
+        MediaActionSound player = getMediaActionSound();
+        if (player == null) return;
+        if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN) return;
+        player.play(MediaActionSound.SHUTTER_CLICK);
+    }
+
     /**
      * enables autofocus for the preview.
      * It will autofocus just a single time.
      */
     public void autoFocusCamera() {
         if (mState != STATE_PREVIEW) return;
-        mCamera.cancelAutoFocus();
+
+        try {
+            mCamera.cancelAutoFocus();
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "autofocus cancellation failed");
+        }
+
         final long startAutoFocusing = System.currentTimeMillis();
-        mCamera.autoFocus(new Camera.AutoFocusCallback() {
-                              @Override
-                              public void onAutoFocus(boolean success, Camera camera) {
-                                  Log.d(TAG, "autofocus done with " + (success ? "" : "no ") + "success in " + Long.toString(System.currentTimeMillis() - startAutoFocusing) + "ms");
+        try {
+            mCamera.autoFocus(new Camera.AutoFocusCallback() {
+                                  @Override
+                                  public void onAutoFocus(boolean success, Camera camera) {
+                                      if (success) {
+                                          playActionSoundAutofocusComplete();
+                                      }
+                                      Log.d(TAG, "autofocus done with " + (success ? "" : "no ") + "success in " + Long.toString(System.currentTimeMillis() - startAutoFocusing) + "ms");
+                                  }
                               }
-                          }
-        );
+            );
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "autofocus failed");
+        }
     }
 
     /**
@@ -513,6 +719,12 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * picture. We don't need to store it at the moment.
      */
     public void toggleCameraPreview() {
+        if (mCamera == null) {
+            mState = STATE_CLOSED;
+            enableCamera();
+            return;
+        }
+
         mState = (mState == STATE_PREVIEW ? STATE_OPENED : STATE_PREVIEW);
 
         if (mState == STATE_PREVIEW) {
@@ -535,25 +747,29 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     /**
      * enables or disables the autofocus mode.
      * We use the FOCUS_MODE_CONTINUOUS_PICTURE to enable the autofocus.
-     *
+     * <p>
      * Your camera has to support this method.
      */
     public void toggleAutoFocusMode() {
-        if(mState != STATE_PREVIEW) return;
+        if (mState != STATE_PREVIEW) return;
 
         Camera.Parameters cameraParameters = mCamera.getParameters();
 
         List<String> focusModes = cameraParameters.getSupportedFocusModes();
-        if (!focusModes.contains(Camera.Parameters.FOCUS_MODE_AUTO)) { return; }
-        if (!focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) { return; }
+        if (!focusModes.contains(FOCUS_MODE_AUTO)) {
+            return;
+        }
+        if (!focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
+            return;
+        }
 
         String currentMode = cameraParameters.getFocusMode();
-        if(currentMode.equals(Camera.Parameters.FOCUS_MODE_AUTO)) {
+        if (currentMode.equals(FOCUS_MODE_AUTO)) {
             Toast.makeText(VisorSurface.this.getContext(), R.string.text_autofocus_enabled, Toast.LENGTH_SHORT).show();
             cameraParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
         } else {
             Toast.makeText(VisorSurface.this.getContext(), R.string.text_autofocus_disabled, Toast.LENGTH_SHORT).show();
-            cameraParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+            cameraParameters.setFocusMode(FOCUS_MODE_AUTO);
         }
 
         mCamera.setParameters(cameraParameters);
@@ -593,6 +809,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
     /**
      * true of the current devices has a flash.
+     *
      * @return true if flash is supported
      */
     private boolean supportsFlashlight() {
@@ -606,12 +823,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         Camera.Parameters parameters = mCamera.getParameters();
         List<String> supportedFlashModes = parameters.getSupportedFlashModes();
         // 2015-08-20 Fix: Some devices/android versions return NULL instead of an list object.
-        if (supportedFlashModes == null || !supportedFlashModes.contains(Camera.Parameters.FLASH_MODE_TORCH)) {
-            // Log.e(TAG, "the current device does not support flashlight mode TORCH.");
-            return false;
-        }
+        return !(supportedFlashModes == null || !supportedFlashModes.contains(Camera.Parameters.FLASH_MODE_TORCH));
 
-        return true;
     }
 
     /**
@@ -644,6 +857,23 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     }
 
     /**
+     * @see .nextZoomLevel
+     */
+    public void prevZoomLevel() {
+        final int steps = (mCameraMaxZoomLevel / (mCameraZoomSteps - 1));
+        final int modulo = (mCameraMaxZoomLevel % (mCameraZoomSteps - 1));
+
+        int prevLevel = mCameraCurrentZoomLevel - steps;
+
+        if (mCameraCurrentZoomLevel <= modulo) {
+            prevLevel = mCameraMaxZoomLevel;
+        }
+
+        if (mState == STATE_PREVIEW)
+            setCameraZoomLevel(prevLevel);
+    }
+
+    /**
      * add several different color filters as a list, which we
      * then toggle each time the corrosponding button gets pressed.
      *
@@ -658,10 +888,10 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      */
     public void toggleColorMode() {
         if (mState == STATE_CLOSED) return;
-        if(mCameraColorFilterList == null) return;
+        if (mCameraColorFilterList == null) return;
 
         mCurrentColorFilterIndex++;
-        if(mCurrentColorFilterIndex >= mCameraColorFilterList.size()) {
+        if (mCurrentColorFilterIndex >= mCameraColorFilterList.size()) {
             mCurrentColorFilterIndex = 0;
         }
 
@@ -672,9 +902,16 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         ColorMatrixColorFilter colorFilter = new ColorMatrixColorFilter(colorMatrix);
         mColorFilterPaint.setColorFilter(colorFilter);
 
-        if(mState == STATE_OPENED) {
+        if (mState == STATE_OPENED) {
             invalidate();
         }
+
+        updatePhotoViewBitmap();
+    }
+
+    private void updatePhotoViewBitmap() {
+        // FIXME refactor!
+        ((VisorActivity) getContext()).mPhotoView.setImageBitmap(getBitmap());
     }
 
     /**
@@ -683,6 +920,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      */
     protected void runBitmapCreateThread(boolean rgb) {
         final BitmapCreateThread bitmapCreateThread = BitmapCreateThread.getInstance(
+                mCameraPreviewRgb,
                 mCameraPreviewBufferData,
                 VisorSurface.this,
                 mCameraPreviewWidth,
@@ -702,12 +940,19 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * @param bitmap
      */
     public void renderBitmap(Bitmap bitmap) {
-        mCameraPreviewBitmapBuffer = bitmap;
+        if (bitmap != null) {
+            mCameraPreviewBitmapBuffer = bitmap;
+        }
 
         ((Activity) getContext()).runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 invalidate();
+
+                // FIXME refactor
+                if(mState != STATE_PREVIEW) {
+                    updatePhotoViewBitmap();
+                }
             }
         });
     }
@@ -715,16 +960,16 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     @Override
     public void onDraw(Canvas canvas) {
         if (mState == STATE_CLOSED) {
-            Log.d(TAG, "onDraw called but the camera state seems to be closed.");
+            // Log.d(TAG, "onDraw called but the camera state seems to be closed.");
             return;
         }
         if (mCameraPreviewBitmapBuffer == null || mCameraPreviewBitmapBuffer.isRecycled()) {
-            Log.d(TAG, "onDraw called but the Bitmap is null or recycled. Do nothing here.");
+            // Log.d(TAG, "onDraw called but the Bitmap is null or recycled. Do nothing here.");
             return;
         }
 
-        if( ! ((mState == STATE_PREVIEW && hasActiveFilterEnabled()) || mState == STATE_OPENED)) {
-            Log.d(TAG, "onDraw called but the camera state is preview but no filter is enabled or the state is not open.");
+        if (!((mState == STATE_PREVIEW && hasActiveFilterEnabled()) || mState == STATE_OPENED)) {
+            // Log.d(TAG, "onDraw called but the camera state is preview but no filter is enabled or the state is not open.");
             return;
         }
 
@@ -733,7 +978,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
          * If the state is opened the preview is probably paused
          */
 
+        canvas.setMatrix(scaleMatrix);
         canvas.drawBitmap(mCameraPreviewBitmapBuffer, 0, 0, mColorFilterPaint);
+
+        // I don't think we need this here:
+        // ((VisorActivity) getContext()).mPhotoView.setImageBitmap(getBitmap());
     }
 
     /**
@@ -789,11 +1038,19 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     }
 
     public Bitmap getBitmap() {
-        buildDrawingCache();
-        final Bitmap bitmap = Bitmap.createBitmap( getDrawingCache() );
-        destroyDrawingCache();
-        return bitmap;
-        // return mCameraPreviewBitmapBuffer;
+        /* */
+        Bitmap previewCopy = Bitmap.createBitmap(mCameraPreviewBitmapBuffer);
+        Canvas canvas = new Canvas();
+        canvas.setBitmap(previewCopy);
+        canvas.drawBitmap(previewCopy, 0, 0, mColorFilterPaint);
+
+        return previewCopy;
+        /* */
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
 
     public void pausePreviewIfReady() {

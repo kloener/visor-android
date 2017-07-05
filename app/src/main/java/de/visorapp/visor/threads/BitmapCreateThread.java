@@ -1,15 +1,13 @@
 package de.visorapp.visor.threads;
 
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.ImageFormat;
-import android.graphics.Rect;
-import android.graphics.YuvImage;
+import android.graphics.Canvas;
+import android.graphics.Matrix;
+import android.graphics.Paint;
 import android.util.Log;
 
-import java.io.ByteArrayOutputStream;
-
 import de.visorapp.visor.BitmapRenderer;
+import de.visorapp.visor.NativeYuvDecoder;
 
 /**
  * An external thread to render the bitmap out of the raw yuvData from the legacy camera preview API.
@@ -31,7 +29,7 @@ public class BitmapCreateThread implements Runnable {
      * New Info:
      * On my new telephone LG G4 it works much better with a higher instances value.
      */
-    private static final int MAX_INSTANCES = 4;
+    private static final int MAX_INSTANCES = 3;
 
     /**
      * count all instances.
@@ -49,16 +47,20 @@ public class BitmapCreateThread implements Runnable {
     private BitmapRenderer renderer;
     private byte[] yuvDataArray;
     private boolean useRgb;
+    private int[] rgbArray;
+
+    private Bitmap renderedBitmap;
 
     /**
      * returns an instance of the task
+     *
      * @param yuvDataArray
      * @param renderer
      * @return
      */
-    public static BitmapCreateThread getInstance(byte[] yuvDataArray, BitmapRenderer renderer, int previewWidth, int previewHeight, int targetWidth, int targetHeight, int jpegQuality, boolean useRgb) {
+    public static BitmapCreateThread getInstance(int[] rgb, byte[] yuvDataArray, BitmapRenderer renderer, int previewWidth, int previewHeight, int targetWidth, int targetHeight, int jpegQuality, boolean useRgb) {
 
-        if(instanceCounter >= MAX_INSTANCES) {
+        if (instanceCounter >= MAX_INSTANCES) {
             Log.d("BitmapCreateThread", "Thread Creation blocked, because we reached our MAX_INSTANCES.");
             return null;
         }
@@ -66,7 +68,7 @@ public class BitmapCreateThread implements Runnable {
 
         BitmapCreateThread instance = new BitmapCreateThread();
         instanceCounter++;
-        Log.d("BitmapCreateThread", "BitmapCreateThreads: "+instanceCounter);
+        // Log.d("BitmapCreateThread", "BitmapCreateThreads: " + instanceCounter);
 
         instance.setYuvDataArray(yuvDataArray);
 
@@ -79,6 +81,7 @@ public class BitmapCreateThread implements Runnable {
         instance.setJpegQuality(jpegQuality);
         instance.setRenderer(renderer);
         instance.setUseRgb(useRgb);
+        instance.setRgbArray(rgb);
 
         return instance;
     }
@@ -106,43 +109,69 @@ public class BitmapCreateThread implements Runnable {
     /**
      * the actual hard work.
      * @param yuvData
-     * @return the resulting bitmap.
      */
-    protected Bitmap createBitmap(byte[] yuvData) {
-        YuvImage yuvImage = new YuvImage(yuvData, ImageFormat.NV21, previewWidth, previewHeight, null);
+    protected void createBitmap(byte[] yuvData) {
+        // YuvImage yuvImage = new YuvImage(yuvData, ImageFormat.NV21, previewWidth, previewHeight, null);
 
-        Bitmap editedBitmap = Bitmap.createBitmap(previewWidth, previewHeight, android.graphics.Bitmap.Config.ARGB_8888);
 
         // greyscale bitmap rendering is a bit faster than yuv-to-rgb convert.
-        int[] rgbData;
-        if(!useRgb) rgbData = this.decodeGreyscale(yuvData, previewWidth, previewHeight);
-        else rgbData = this.decodeYuvToRgb(yuvData, previewWidth, previewHeight);
+        //int[] rgbData;
 
-        editedBitmap.setPixels(rgbData, 0, previewWidth, 0, 0, previewWidth, previewHeight);
+        // different strategies (for performance): use greyscale in preview mode and rgb in picture mode.
+        //if(!useRgb) rgbData = this.decodeYuvWithNativeYuvToGreyScale(yuvData, previewWidth, previewHeight);
+        if(!useRgb) this.decodeYuvWithNativeYuvToGreyScale(rgbArray, yuvData, previewWidth, previewHeight);
+        else this.decodeYuvToRgb(rgbArray, yuvData, previewWidth, previewHeight);
 
-        // Why should we do this?
-        // Bitmap bitmap = Bitmap.createBitmap(editedBitmap, 0, 0, previewWidth, previewHeight, null, true);
-        editedBitmap = Bitmap.createScaledBitmap(editedBitmap, targetWidth, targetHeight, true);
+        if(renderedBitmap == null) {
+            renderedBitmap = Bitmap.createBitmap(previewWidth, previewHeight, android.graphics.Bitmap.Config.ARGB_8888);
+        }
+        renderedBitmap.setPixels(rgbArray, 0, previewWidth, 0, 0, previewWidth, previewHeight);
 
-        return editedBitmap;
+        // scaling (costs a lot of memory)
+        // renderedBitmap = Bitmap.createScaledBitmap(renderedBitmap, targetWidth, targetHeight, true);
     }
 
     /**
-     * @source http://stackoverflow.com/a/29963291
-     * @param nv21
-     * @param width
-     * @param height
+     * custom scaling function. replaces createScaledBitmap.
+     *
+     * DO NOT USE. the bitmap gets scaled in "onDraw" via a Matrix.
+     *
+     * @param bitmap
+     * @param newWidth
+     * @param newHeight
      * @return
      */
-    private int[] decodeGreyscale(byte[] nv21, int width, int height) {
-        int pixelCount = width * height;
-        int[] out = new int[pixelCount];
-        for (int i = 0; i < pixelCount; ++i) {
-            int luminance = nv21[i] & 0xFF;
-            // out[i] = Color.argb(0xFF, luminance, luminance, luminance);
-            out[i] = 0xff000000 | luminance <<16 | luminance <<8 | luminance;//No need to create Color object for each.
-        }
-        return out;
+    public static Bitmap scaleBitmap(Bitmap bitmap, int newWidth, int newHeight) {
+        Bitmap scaledBitmap = Bitmap.createBitmap(newWidth, newHeight, android.graphics.Bitmap.Config.ARGB_8888);
+
+        float scaleX = newWidth / (float) bitmap.getWidth();
+        float scaleY = newHeight / (float) bitmap.getHeight();
+        float pivotX = 0;
+        float pivotY = 0;
+
+        Matrix scaleMatrix = new Matrix();
+        scaleMatrix.setScale(scaleX, scaleY, pivotX, pivotY);
+
+        Canvas canvas = new Canvas(scaledBitmap);
+        canvas.setMatrix(scaleMatrix);
+        canvas.drawBitmap(bitmap, 0, 0, new Paint(Paint.FILTER_BITMAP_FLAG));
+
+        return scaledBitmap;
+    }
+
+    private void decodeYuvWithNativeYuvToGreyScale(int[] rgb, byte[] yuvData, int width, int height) {
+        //int pixelCount = width * height;
+        //)//int[] out = new int[pixelCount];
+        NativeYuvDecoder.YUVtoRGBGreyscale(yuvData, width, height, rgb);
+        //return out;
+    }
+
+    // NOTE does change the colors
+    private void decodeYuvWithNativeYuvToRgb(int[] rgb, byte[] yuvData, int width, int height) {
+        //int pixelCount = width * height;
+        // int[] out = new int[pixelCount];
+        NativeYuvDecoder.YUVtoRBGA(yuvData, width, height, rgb);
+        //return out;
     }
 
     /**
@@ -153,9 +182,9 @@ public class BitmapCreateThread implements Runnable {
      * @param height
      * @return
      */
-    private int[] decodeYuvToRgb(byte[] nv21, int width, int height) {
+    private void decodeYuvToRgb(int[] rgb, byte[] nv21, int width, int height) {
         int frameSize = width * height;
-        int[] rgba = new int[frameSize + 1];
+        //int[] rgba = new int[frameSize + 1];
 
         // Convert YUV to RGB
         for (int i = 0; i < height; i++)
@@ -165,18 +194,29 @@ public class BitmapCreateThread implements Runnable {
                 int v = (0xff & ((int) nv21[frameSize + (i >> 1) * width + (j & ~1) + 1]));
                 y = y < 16 ? 16 : y;
 
-                int r = Math.round(1.164f * (y - 16) + 1.596f * (v - 128));
+                // @source http://www.wordsaretoys.com/2013/10/18/making-yuv-conversion-a-little-faster/
+                // @thanks John Jared (https://codetracer.co/profile/109)
+                int a0 = 1192 * (y - 16);
+                int a1 = 1634 * (v - 128);
+                int a2 = 832 * (v - 128);
+                int a3 = 400 * (u - 128);
+                int a4 = 2066 * (u - 128);
+
+                int r = (a0 + a1) >> 10;
+                int g = (a0 - a2 - a3) >> 10;
+                int b = (a0 + a4) >> 10;
+                /*int r = Math.round(1.164f * (y - 16) + 1.596f * (v - 128));
                 int g = Math.round(1.164f * (y - 16) - 0.813f * (v - 128) - 0.391f * (u - 128));
-                int b = Math.round(1.164f * (y - 16) + 2.018f * (u - 128));
+                int b = Math.round(1.164f * (y - 16) + 2.018f * (u - 128));*/
 
                 r = r < 0 ? 0 : (r > 255 ? 255 : r);
                 g = g < 0 ? 0 : (g > 255 ? 255 : g);
                 b = b < 0 ? 0 : (b > 255 ? 255 : b);
 
-                rgba[i * width + j] = 0xff000000 + (b << 16) + (g << 8) + r;
+                rgb[i * width + j] = 0xff000000 + (b << 16) + (g << 8) + r;
             }
 
-        return rgba;
+        //return rgba;
     }
 
     /**
@@ -184,22 +224,22 @@ public class BitmapCreateThread implements Runnable {
      * @param yuvDataArray
      * @return
      */
-    protected Bitmap doInBackground(byte[] yuvDataArray) {
-        return this.createBitmap(yuvDataArray);
+    protected void doInBackground(byte[] yuvDataArray) {
+        this.createBitmap(yuvDataArray);
     }
 
     /**
      * after the hard stuff is done.
-     * @param bitmap
      */
-    protected void onPostExecute(Bitmap bitmap) {
-        renderer.renderBitmap(bitmap);
+    protected void onPostExecute() {
+        renderer.renderBitmap(renderedBitmap);
         instanceCounter--;
     }
 
     @Override
     public void run() {
-        onPostExecute(doInBackground(yuvDataArray));
+        doInBackground(yuvDataArray);
+        onPostExecute();
     }
 
     public void setTargetWidth(int targetWidth) {
@@ -212,5 +252,9 @@ public class BitmapCreateThread implements Runnable {
 
     public void setUseRgb(boolean useRgb) {
         this.useRgb = useRgb;
+    }
+
+    public void setRgbArray(int[] rgbArray) {
+        this.rgbArray = rgbArray;
     }
 }
