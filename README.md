@@ -37,6 +37,15 @@ This is the offical android version of the visor app - the low vision magnifier.
 
 ## Changelog
 
+Version 1.5.0 (2017-07-05)
+- using a native module to calculate yuv2rgb (greyscaled) (increases performance a bit, I guess)
+- using matrix-scaling instead of re-creating a bitmap with new size (drastically increases performance)
+- added PhotoView to pinch and zoom to paused camera preview (see https://github.com/chrisbanes/PhotoView)
+- added button animations
+- added sound effects for focus and image storing
+- hiding statusbar AND navigationbar
+- fixed several issues
+
 Version 1.3.0 (2016-04-23)
 
 - If no filter is selected the app now avoids to create a bitmap. This increases battery life and app performance.
