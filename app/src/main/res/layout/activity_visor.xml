@@ -22,11 +22,17 @@
         android:scaleType="centerInside"
         android:paddingTop="@dimen/button_padding_secondary"
         android:paddingBottom="@dimen/button_padding_secondary"
+        android:layout_margin="@dimen/button_margin_secondary"
         android:background="@drawable/button_flash_round_corners"
         android:contentDescription="@string/button_flash_description"
         android:layout_below="@+id/button_zoom"
         android:layout_alignRight="@+id/button_zoom"
         android:layout_alignEnd="@+id/button_zoom"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentTop="false"
+        android:layout_alignParentBottom="false"
+        android:layout_alignParentLeft="false"
+        android:layout_alignWithParentIfMissing="false"
         android:elevation="8dp" />
 
 
@@ -49,7 +55,7 @@
         android:layout_alignWithParentIfMissing="false"
         android:layout_alignBaseline="@+id/button_zoom"
         android:layout_centerVertical="true"
-        android:layout_marginRight="8dp" />
+        android:layout_margin="@dimen/button_margin_secondary" />
 
     <ImageButton
         android:id="@+id/button_zoom"
@@ -62,6 +68,7 @@
         android:contentDescription="@string/button_zoom_description"
         android:paddingTop="@dimen/button_padding_primary"
         android:paddingBottom="@dimen/button_padding_primary"
+        android:layout_margin="@dimen/button_margin_primary"
         android:layout_centerVertical="true"
         android:layout_alignParentRight="true"
         android:layout_alignParentEnd="true"
@@ -76,11 +83,11 @@
         android:scaleType="centerInside"
         android:paddingTop="@dimen/button_padding_secondary"
         android:paddingBottom="@dimen/button_padding_secondary"
+        android:layout_margin="@dimen/button_margin_secondary"
         android:background="@drawable/button_color_round_corners"
         android:contentDescription="@string/button_color_description"
         android:layout_above="@+id/button_zoom"
         android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true"
         android:elevation="8dp" />
 
 </RelativeLayout>
