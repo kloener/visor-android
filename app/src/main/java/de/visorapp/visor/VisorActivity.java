@@ -1,9 +1,11 @@
 package de.visorapp.visor;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
@@ -12,23 +14,26 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
 import android.view.View;
-import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
-import android.widget.ImageView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import com.github.chrisbanes.photoview.PhotoView;
+
 import java.io.File;
-import java.io.FileOutputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
 import de.visorapp.visor.filters.ColorFilter;
-import uk.co.senab.photoview.PhotoView;
 
 /**
  */
@@ -51,6 +56,12 @@ public class VisorActivity extends Activity {
      */
     private static final boolean TOGGLE_ON_CLICK = false;
 
+    // Defining Permission codes.
+    // We can give any value
+    // but unique for each permission.
+    private static final int CAMERA_PERMISSION_CODE = 100;
+    private static final int STORAGE_PERMISSION_CODE = 101;
+
     /**
      * Tag name for the Log message.
      */
@@ -72,7 +83,7 @@ public class VisorActivity extends Activity {
      * app gets paused or destroyed.
      */
     private float prevScreenBrightnewss;
-    public uk.co.senab.photoview.PhotoView mPhotoView;
+    public PhotoView mPhotoView;
 
     public void playClickSound(View view) {
         // TODO the user can disable this; if click-sounds are enable I hear a double click effect...
@@ -144,8 +155,10 @@ public class VisorActivity extends Activity {
         mVisorView.setAlpha(1.0f);
         // mVisorView.setVisibility(View.VISIBLE); // the change of visiblity would cause a surfaceDestroy!
 
-        mPhotoView.setVisibility(View.GONE);
-        mPhotoView.setAlpha(0);
+        if (mPhotoView != null) {
+            mPhotoView.setVisibility(View.GONE);
+            mPhotoView.setAlpha(0);
+        }
     }
 
     private View.OnClickListener flashLightClickHandler = new View.OnClickListener() {
@@ -276,17 +289,63 @@ public class VisorActivity extends Activity {
         }
     }
 
+    // This function is called when the user accepts or decline the permission.
+    // Request Code is used to check which permission called this function.
+    // This request code is provided when the user is prompt for permission.
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super
+                .onRequestPermissionsResult(requestCode,
+                        permissions,
+                        grantResults);
+
+        if (requestCode == CAMERA_PERMISSION_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                restartActvitiy();
+            } else {
+                Toast.makeText(this,
+                        "Camera Permission Denied",
+                        Toast.LENGTH_SHORT)
+                        .show();
+            }
+        } else if (requestCode == STORAGE_PERMISSION_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                takeScreenshot();
+            } else {
+                Toast.makeText(this,
+                        "Storage Permission Denied",
+                        Toast.LENGTH_SHORT)
+                        .show();
+            }
+        }
+    }
+
+    private void restartActvitiy() {
+        Intent intent = new Intent(getApplicationContext(), this.getClass());
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        Runtime.getRuntime().exit(0);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_visor);
 
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_CODE);
+            return;
+        }
+
         animScale = AnimationUtils.loadAnimation(this, R.anim.scale);
         animScaleLongPress = AnimationUtils.loadAnimation(this, R.anim.longpress);
 
         mVisorView = new VisorSurface(this);
-        mPhotoView = new uk.co.senab.photoview.PhotoView(this);
+        mPhotoView = new PhotoView(this);
 
         List<ColorFilter> filterList = new ArrayList<ColorFilter>();
         filterList.add(VisorSurface.NO_FILTER);
@@ -311,6 +370,7 @@ public class VisorActivity extends Activity {
 
         // set proper display orientation
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+
     }
 
     private FrameLayout getCameraPreviewFrame() {
@@ -364,7 +424,7 @@ public class VisorActivity extends Activity {
     protected void onResume() {
         super.onResume();
 
-        if (cameraPreviewState != true) {
+        if (cameraPreviewState != true && mPhotoView != null) {
             cameraPreviewState = true;
             cameraPreviewIsActive(mPauseButton);
         }
@@ -376,33 +436,23 @@ public class VisorActivity extends Activity {
      * @source https://stackoverflow.com/questions/2661536/how-to-programmatically-take-a-screenshot-in-android#5651242
      */
     private void takeScreenshot() {
+        if (Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT < 29 &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_DENIED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION_CODE);
+            return;
+        }
         Date now = new Date();
         android.text.format.DateFormat.format("yyyy-MM-dd_hh:mm:ss", now);
-
         try {
-            // image naming and path  to include sd card  appending name you choose for file
-            String mPath = Environment.getExternalStorageDirectory().toString() + "/Pictures/visor-os-android.app_" + now + ".jpg";
-
+            String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", getResources().getConfiguration().locale).format(new Date());
+            String imageFileName = "JPEG_" + timeStamp + ".jpg";
             Bitmap bitmap = mVisorView.getBitmap();
-            File imageFile = new File(mPath);
-
             mVisorView.playActionSoundShutter();
-
-            FileOutputStream outputStream = new FileOutputStream(imageFile);
-            final int quality = VisorSurface.JPEG_QUALITY;
-            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream);
-            outputStream.flush();
-            outputStream.close();
-
-            int duration = Toast.LENGTH_SHORT;
-            Toast toasty = Toast.makeText(this, R.string.text_image_stored + mPath, duration);
-            toasty.show();
-
             mVisorView.mState = VisorSurface.STATE_CLOSED;
             cameraPreviewIsActive(mZoomButton);
-
-            openScreenshot(imageFile);
-
+            Uri uri = Util.saveImageOnAllAPIs(bitmap, this, "", imageFileName, VisorSurface.JPEG_QUALITY);
+            if (uri != null)
+                openScreenshot(uri);
         } catch (Throwable e) {
             // Several error may come out with file handling or OOM
             e.printStackTrace();
@@ -412,11 +462,10 @@ public class VisorActivity extends Activity {
     /**
      * @source https://stackoverflow.com/questions/2661536/how-to-programmatically-take-a-screenshot-in-android#5651242
      */
-    private void openScreenshot(File imageFile) {
-        Intent intent = new Intent();
-        intent.setAction(Intent.ACTION_VIEW);
-        Uri uri = Uri.fromFile(imageFile);
-        intent.setDataAndType(uri, "image/*");
+    private void openScreenshot(Uri uri) {
+        Intent intent = new Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, "image/*")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         startActivity(intent);
     }
 }
