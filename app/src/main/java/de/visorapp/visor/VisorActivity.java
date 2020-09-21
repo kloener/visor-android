@@ -85,6 +85,8 @@ public class VisorActivity extends Activity {
     private float prevScreenBrightnewss;
     public PhotoView mPhotoView;
 
+    private int zoomButtonVisibility = View.VISIBLE;
+
     public void playClickSound(View view) {
         // TODO the user can disable this; if click-sounds are enable I hear a double click effect...
         // if(view == null) return;
@@ -132,6 +134,8 @@ public class VisorActivity extends Activity {
     private void cameraPreviewIsPaused(ImageButton playOrPauseButton) {
         playOrPauseButton.setImageResource(R.drawable.ic_play);
         mZoomButton.setImageResource(R.drawable.ic_camera);
+        zoomButtonVisibility = mZoomButton.getVisibility();
+        mZoomButton.setVisibility(View.VISIBLE);
         mFlashButton.setAlpha(64);
         mFlashButton.getBackground().setAlpha(64);
 
@@ -147,6 +151,7 @@ public class VisorActivity extends Activity {
 
     private void cameraPreviewIsActive(ImageButton playOrPauseButton) {
         playOrPauseButton.setImageResource(R.drawable.ic_pause);
+        mZoomButton.setVisibility(zoomButtonVisibility);
         mZoomButton.setImageResource(R.drawable.ic_zoom);
         mFlashButton.setAlpha(255);
         mFlashButton.getBackground().setAlpha(255);
