@@ -110,6 +110,17 @@ public class VisorActivity extends Activity {
         }
     };
 
+    private View.OnLongClickListener colorModeLongClickHandler = new View.OnLongClickListener() {
+        @Override
+        public boolean onLongClick(View v) {
+            v.startAnimation(animScale);
+            playClickSound(v);
+
+            mVisorView.setColorMode(0);
+            return true;
+        }
+    };
+
     private View.OnClickListener pauseClickHandler = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
@@ -398,6 +409,7 @@ public class VisorActivity extends Activity {
         // Add a listener to the Flash button
         ImageButton colorButton = (ImageButton) findViewById(R.id.button_color);
         colorButton.setOnClickListener(colorModeClickHandler);
+        colorButton.setOnLongClickListener(colorModeLongClickHandler);
 
         ImageButton pauseButton = (ImageButton) findViewById(R.id.button_pause);
         pauseButton.setOnClickListener(pauseClickHandler);

@@ -890,7 +890,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         if (mState == STATE_CLOSED) return;
         if (mCameraColorFilterList == null) return;
 
-        mCurrentColorFilterIndex++;
+        setColorMode(mCurrentColorFilterIndex + 1);
+    }
+
+    public void setColorMode(int index) {
+        mCurrentColorFilterIndex = index;
         if (mCurrentColorFilterIndex >= mCameraColorFilterList.size()) {
             mCurrentColorFilterIndex = 0;
         }
