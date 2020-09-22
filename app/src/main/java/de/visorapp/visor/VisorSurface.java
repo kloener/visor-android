@@ -21,6 +21,7 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.widget.SeekBar;
 import android.widget.Toast;
 
 import java.io.IOException;
@@ -51,7 +52,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     /**
      * The maximum of steps until we will reach the maximum zoom level.
      */
-    private static final int mCameraZoomSteps = 4;
+    private static final int DEFAULT_ZOOM_PERCENT = 10;
 
     /**
      * The jpeg quality which will be rendered for each camera preview image.
@@ -295,10 +296,10 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     /**
      * reference to the zoom button.
      * <p>
-     * We hide the zoom Button if zoom is not supported
+     * We hide the zoom slider if zoom is not supported
      * by the device camera.
      */
-    private View zoomButtonView;
+    private SeekBar zoomSlider;
     /**
      * reference to the flash button.
      * <p>
@@ -504,8 +505,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         Camera.Parameters parameters = mCamera.getParameters();
         if (parameters.isZoomSupported()) {
             mCameraMaxZoomLevel = parameters.getMaxZoom();
-        } else {
-            getZoomButtonView().setVisibility(View.INVISIBLE);
+        } else if (!BuildConfig.DEBUG) {
+            getZoomSlider().setVisibility(View.INVISIBLE);
         }
         Camera.Size size = getBestPreviewSize(parameters);
 
@@ -579,8 +580,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         // start with the first zoom level.
         // init zoom level member attr.
         if (mCameraCurrentZoomLevel == 0) {
-            mCameraCurrentZoomLevel = mCameraMaxZoomLevel;
-            nextZoomLevel();
+            setZoomLevelPercent (DEFAULT_ZOOM_PERCENT);
         } else {
             setCameraZoomLevel(mCameraCurrentZoomLevel);
         }
@@ -675,6 +675,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         if (player == null) return;
         if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN) return;
         player.play(MediaActionSound.FOCUS_COMPLETE);
+        return;
     }
 
     public void playActionSoundShutter() {
@@ -827,50 +828,20 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
     }
 
-    /**
-     * triggers the next zoom level for the camera.
-     * We use a simple math calculation to calculate each
-     * single step until we reach the maximum zoom level.
-     * the first step will always be the module of:
-     * `mCameraMaxZoomLevel % mCameraZoomSteps` to avoid
-     * a fifth baby step for some pixels.
-     * <p/>
-     * On my Nexus 5 the max level is 99. We have 4 steps, so
-     * each step will be 24. The first step will be 3.
-     * We'll never reach the 0 zoom level, but that's okay.
-     * <p/>
-     * If the preview isn't ready it, the values will
-     * nevertheless stored in the member variables.
-     */
-    public void nextZoomLevel() {
-        final int steps = (mCameraMaxZoomLevel / (mCameraZoomSteps - 1));
-        final int modulo = (mCameraMaxZoomLevel % (mCameraZoomSteps - 1));
-
-        int nextLevel = mCameraCurrentZoomLevel + steps;
-
-        if (mCameraCurrentZoomLevel == mCameraMaxZoomLevel) {
-            nextLevel = modulo;
-        }
-
-        if (mState == STATE_PREVIEW)
-            setCameraZoomLevel(nextLevel);
+    public void setSZoomSliderLevelPercent(int zoomLevelPercent) {
+        zoomSlider.setProgress(zoomLevelPercent);
     }
 
-    /**
-     * @see .nextZoomLevel
-     */
-    public void prevZoomLevel() {
-        final int steps = (mCameraMaxZoomLevel / (mCameraZoomSteps - 1));
-        final int modulo = (mCameraMaxZoomLevel % (mCameraZoomSteps - 1));
+    public void setZoomLevelPercent(int zoomLevelPercent) {
+        mCameraCurrentZoomLevel = (int) ((double) zoomLevelPercent * mCameraMaxZoomLevel / 100);
 
-        int prevLevel = mCameraCurrentZoomLevel - steps;
-
-        if (mCameraCurrentZoomLevel <= modulo) {
-            prevLevel = mCameraMaxZoomLevel;
+        if (mCameraCurrentZoomLevel > mCameraMaxZoomLevel) {
+            zoomLevelPercent = mCameraMaxZoomLevel;
         }
 
-        if (mState == STATE_PREVIEW)
-            setCameraZoomLevel(prevLevel);
+        if (mState == STATE_PREVIEW) {
+            setCameraZoomLevel(zoomLevelPercent);
+        }
     }
 
     /**
@@ -1025,16 +996,16 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         mCamera.setParameters(parameters);
     }
 
-    public View getZoomButtonView() {
-        return zoomButtonView;
+    public SeekBar getZoomSlider() {
+        return zoomSlider;
     }
 
     public View getFlashButtonView() {
         return flashButtonView;
     }
 
-    public void setZoomButton(View zoomButton) {
-        this.zoomButtonView = zoomButton;
+    public void setZoomSlider(SeekBar zoomSlider) {
+        this.zoomSlider = zoomSlider;
     }
 
     public void setFlashButton(View flashButton) {

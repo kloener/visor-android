@@ -13,11 +13,23 @@
 
     </FrameLayout>
 
+    <FrameLayout
+        android:id="@+id/camera_preview_touch_area"
+        android:layout_width="fill_parent"
+        android:layout_height="match_parent"
+        android:layout_alignParentTop="true"
+        android:layout_toStartOf="@+id/button_pause"
+        android:layout_alignParentStart="true"
+        android:layout_toLeftOf="@+id/button_pause"
+        android:layout_alignParentLeft="true" />
+
+    <include layout="@layout/zoom_slider" />
+
     <ImageButton
         android:id="@+id/button_flash"
         android:layout_width="@dimen/button_size_secondary"
         android:layout_height="@dimen/button_size_secondary"
-        android:layout_gravity="right|bottom"
+        android:layout_gravity="end|bottom"
         android:src="@drawable/ic_flash_on_black_48dp"
         android:scaleType="centerInside"
         android:paddingTop="@dimen/button_padding_secondary"
@@ -25,15 +37,17 @@
         android:layout_margin="@dimen/button_margin_secondary"
         android:background="@drawable/button_flash_round_corners"
         android:contentDescription="@string/button_flash_description"
-        android:layout_below="@+id/button_zoom"
-        android:layout_alignRight="@+id/button_zoom"
-        android:layout_alignEnd="@+id/button_zoom"
-        android:layout_alignParentRight="true"
+        android:layout_above="@+id/zoom_slider_frame"
+        android:layout_alignEnd="@+id/zoom_slider_frame"
+        android:layout_alignParentEnd="true"
         android:layout_alignParentTop="false"
         android:layout_alignParentBottom="false"
-        android:layout_alignParentLeft="false"
+        android:layout_alignParentStart="false"
         android:layout_alignWithParentIfMissing="false"
-        android:elevation="8dp" />
+        android:elevation="8dp"
+        android:layout_alignRight="@+id/zoom_slider_frame"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentLeft="false" />
 
 
     <ImageButton
@@ -47,22 +61,25 @@
         android:contentDescription="@string/button_flash_description"
         android:scaleType="centerInside"
         android:layout_gravity="center_vertical"
-        android:layout_toLeftOf="@id/button_zoom"
+        android:layout_toStartOf="@id/zoom_slider_frame"
         android:elevation="8dp"
         android:layout_alignParentTop="false"
         android:layout_alignParentBottom="false"
-        android:layout_alignParentLeft="false"
+        android:layout_alignParentStart="false"
         android:layout_alignWithParentIfMissing="false"
-        android:layout_alignBaseline="@+id/button_zoom"
+        android:layout_alignBaseline="@+id/zoom_slider_frame"
         android:layout_centerVertical="true"
-        android:layout_margin="@dimen/button_margin_secondary" />
+        android:layout_margin="@dimen/button_margin_secondary"
+        android:layout_toLeftOf="@id/zoom_slider_frame"
+        android:layout_alignParentLeft="false" />
 
     <ImageButton
-        android:id="@+id/button_zoom"
+        android:id="@+id/button_photo"
+        android:visibility="invisible"
         android:layout_width="@dimen/button_size_primary"
         android:layout_height="@dimen/button_size_primary"
-        android:layout_gravity="right|center_vertical"
-        android:src="@drawable/ic_zoom"
+        android:layout_gravity="end|center_vertical"
+        android:src="@drawable/ic_camera"
         android:scaleType="centerInside"
         android:background="@drawable/button_zoom_round_corners"
         android:contentDescription="@string/button_zoom_description"
@@ -70,9 +87,9 @@
         android:paddingBottom="@dimen/button_padding_primary"
         android:layout_margin="@dimen/button_margin_primary"
         android:layout_centerVertical="true"
-        android:layout_alignParentRight="true"
         android:layout_alignParentEnd="true"
-        android:elevation="16dp" />
+        android:elevation="16dp"
+        android:layout_alignParentRight="true" />
 
     <ImageButton
         android:id="@+id/button_color"
@@ -86,7 +103,7 @@
         android:layout_margin="@dimen/button_margin_secondary"
         android:background="@drawable/button_color_round_corners"
         android:contentDescription="@string/button_color_description"
-        android:layout_above="@+id/button_zoom"
+        android:layout_below="@+id/zoom_slider_frame"
         android:layout_alignParentRight="true"
         android:elevation="8dp" />
 

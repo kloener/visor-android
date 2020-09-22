@@ -11,7 +11,6 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
@@ -19,6 +18,7 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.SeekBar;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -27,7 +27,6 @@ import androidx.core.content.ContextCompat;
 
 import com.github.chrisbanes.photoview.PhotoView;
 
-import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -85,7 +84,8 @@ public class VisorActivity extends Activity {
     private float prevScreenBrightnewss;
     public PhotoView mPhotoView;
 
-    private int zoomButtonVisibility = View.VISIBLE;
+    private int zoomSliderVisibility = View.VISIBLE;
+    private View mVisorViewTouchArea;
 
     public void playClickSound(View view) {
         // TODO the user can disable this; if click-sounds are enable I hear a double click effect...
@@ -144,9 +144,10 @@ public class VisorActivity extends Activity {
 
     private void cameraPreviewIsPaused(ImageButton playOrPauseButton) {
         playOrPauseButton.setImageResource(R.drawable.ic_play);
-        mZoomButton.setImageResource(R.drawable.ic_camera);
-        zoomButtonVisibility = mZoomButton.getVisibility();
-        mZoomButton.setVisibility(View.VISIBLE);
+        mVisorViewTouchArea.setVisibility(View.INVISIBLE);
+        zoomSliderVisibility = mZoomSlider.getVisibility();
+        mZoomSlider.setVisibility(View.INVISIBLE);
+        mPhotoButton.setVisibility(View.VISIBLE);
         mFlashButton.setAlpha(64);
         mFlashButton.getBackground().setAlpha(64);
 
@@ -162,8 +163,9 @@ public class VisorActivity extends Activity {
 
     private void cameraPreviewIsActive(ImageButton playOrPauseButton) {
         playOrPauseButton.setImageResource(R.drawable.ic_pause);
-        mZoomButton.setVisibility(zoomButtonVisibility);
-        mZoomButton.setImageResource(R.drawable.ic_zoom);
+        mVisorViewTouchArea.setVisibility(View.VISIBLE);
+        mZoomSlider.setVisibility(zoomSliderVisibility);
+        mPhotoButton.setVisibility(View.INVISIBLE);
         mFlashButton.setAlpha(255);
         mFlashButton.getBackground().setAlpha(255);
 
@@ -186,30 +188,11 @@ public class VisorActivity extends Activity {
             mVisorView.nextFlashlightMode(getApplicationContext());
         }
     };
-    private View.OnClickListener zoomClickHandler = new View.OnClickListener() {
+    private View.OnClickListener screenshotClickHandler = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
             v.startAnimation(animScale);
-            playClickSound(v);
-
-            if (cameraPreviewState) {
-                mVisorView.nextZoomLevel();
-                return;
-            }
-
             takeScreenshot();
-        }
-    };
-    private View.OnLongClickListener zoomOutClickHandler = new View.OnLongClickListener() {
-        @Override
-        public boolean onLongClick(View v) {
-            v.startAnimation(animScaleLongPress);
-
-            if (cameraPreviewState) {
-                mVisorView.prevZoomLevel();
-                return true;
-            }
-            return true;
         }
     };
     private View.OnLongClickListener tapAndHoldListener = new View.OnLongClickListener() {
@@ -220,10 +203,29 @@ public class VisorActivity extends Activity {
         }
     };
 
+    private SeekBar.OnSeekBarChangeListener zoomSliderChangelistener = new SeekBar.OnSeekBarChangeListener() {
+        @Override
+        public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+            if (cameraPreviewState) {
+                mVisorView.setZoomLevelPercent(progress);
+            }
+        }
+
+        @Override
+        public void onStartTrackingTouch(SeekBar seekBar) {
+
+        }
+
+        @Override
+        public void onStopTrackingTouch(SeekBar seekBar) {
+
+        }
+    };
     /**
      * Store the reference to swap the icon on it if we pause the preview.
      */
-    private ImageButton mZoomButton;
+    private SeekBar mZoomSlider;
+    private ImageButton mPhotoButton;
     private ImageButton mPauseButton;
     private ImageButton mFlashButton;
     private Animation animScale;
@@ -380,9 +382,10 @@ public class VisorActivity extends Activity {
 
         setButtonListeners();
 
-        // Add a listener to the Preview button
-        mVisorView.setOnClickListener(autoFocusClickHandler);/**/
-        mVisorView.setOnLongClickListener(tapAndHoldListener);
+        // Add listeners to the Preview area (left of the buttons to avoid accidental triggering)
+        mVisorViewTouchArea = findViewById(R.id.camera_preview_touch_area);
+        mVisorViewTouchArea.setOnClickListener(autoFocusClickHandler);/**/
+        mVisorViewTouchArea.setOnLongClickListener(tapAndHoldListener);
 
         // set proper display orientation
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
@@ -397,16 +400,18 @@ public class VisorActivity extends Activity {
      *
      */
     private void setButtonListeners() {
-        // Add a listener to the Zoom button
-        ImageButton zoomButton = (ImageButton) findViewById(R.id.button_zoom);
-        zoomButton.setOnClickListener(zoomClickHandler);
-        zoomButton.setOnLongClickListener(zoomOutClickHandler);
+        // Add a listener to the Zoom slider
+        SeekBar zoomSlider =  findViewById(R.id.zoom_slider);
+        zoomSlider.setOnSeekBarChangeListener(zoomSliderChangelistener);
+
+        mPhotoButton = findViewById(R.id.button_photo);
+        mPhotoButton.setOnClickListener(screenshotClickHandler);
 
         // Add a listener to the Flash button
         ImageButton flashButton = (ImageButton) findViewById(R.id.button_flash);
         flashButton.setOnClickListener(flashLightClickHandler);
 
-        // Add a listener to the Flash button
+        // Add a listener to the Color Filter button
         ImageButton colorButton = (ImageButton) findViewById(R.id.button_color);
         colorButton.setOnClickListener(colorModeClickHandler);
         colorButton.setOnLongClickListener(colorModeLongClickHandler);
@@ -414,10 +419,10 @@ public class VisorActivity extends Activity {
         ImageButton pauseButton = (ImageButton) findViewById(R.id.button_pause);
         pauseButton.setOnClickListener(pauseClickHandler);
 
-        mVisorView.setZoomButton(zoomButton);
+        mVisorView.setZoomSlider(zoomSlider);
         mVisorView.setFlashButton(flashButton);
 
-        mZoomButton = zoomButton;
+        mZoomSlider = zoomSlider;
         mPauseButton = pauseButton;
         mFlashButton = flashButton;
     }
@@ -466,7 +471,7 @@ public class VisorActivity extends Activity {
             Bitmap bitmap = mVisorView.getBitmap();
             mVisorView.playActionSoundShutter();
             mVisorView.mState = VisorSurface.STATE_CLOSED;
-            cameraPreviewIsActive(mZoomButton);
+            cameraPreviewIsActive(mPauseButton);
             Uri uri = Util.saveImageOnAllAPIs(bitmap, this, "", imageFileName, VisorSurface.JPEG_QUALITY);
             if (uri != null)
                 openScreenshot(uri);
