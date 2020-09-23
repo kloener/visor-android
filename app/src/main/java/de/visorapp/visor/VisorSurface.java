@@ -27,6 +27,7 @@ import android.widget.Toast;
 import androidx.preference.PreferenceManager;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -78,14 +79,17 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     public static final int STATE_PREVIEW = 2;
 
     /**
-     * Max width for the camera preview to avoid performance and ram/cache issues.
-     * TODO should be configurable by a settings-activity! (feature)
+     * Max initial width for the camera preview to avoid performance and ram/cache issues.
+     * Afterwards the preview width can be selected from the available sizes in the settings activity.
      */
-
-    private static final int MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH = 1024;
+    private static final int MAX_INITIAL_PREVIEW_RESOLUTION_WIDTH = 1280;
     private final SharedPreferences mSharedPreferences;
 
     private MediaActionSound mSound = null;
+
+    private static VisorSurface mInstance;
+
+    public CharSequence[] availablePreviewWidths;
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
@@ -192,7 +196,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     /**
      * stores the value of the devices max zoom level of the camera.
      */
-    private int mCameraMaxZoomLevel;
+    private int mCameraMaxZoomLevel = 1;
 
     /**
      * the width of the view.
@@ -331,11 +335,10 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      */
     public VisorSurface(Context context) {
         super(context);
-
+        mInstance = this;
         Log.d(TAG, "VisorSurface instantiated");
 
         mCameraCurrentZoomLevel = 0;
-        mCameraMaxZoomLevel = 0;
         mCurrentColorFilterIndex = 0;
 
         mSharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
@@ -371,6 +374,10 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         // underlying surface is created and destroyed.
         mHolder = getHolder();
         mHolder.addCallback(this);
+    }
+
+    public static VisorSurface getInstance() {
+        return mInstance;
     }
 
     /**
@@ -453,6 +460,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      */
     private Camera.Size getBestPreviewSize(Camera.Parameters parameters) {
         Camera.Size result = null;
+        final int UNINITIALIZED_WIDTH = -1;
+        int preferredPreviewWidth = Integer.parseInt(mSharedPreferences.getString(getResources().getString(R.string.key_preference_preview_resolution), Integer.toString(UNINITIALIZED_WIDTH)));
 
         List<Camera.Size> size = parameters.getSupportedPreviewSizes();
         Collections.sort(size, new Comparator<Camera.Size>() {
@@ -466,19 +475,21 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
         if (size.size() <= 0) return null;
 
-        for (int i = (size.size() - 1); i >= 0; i--) {
+        ArrayList<String> availablePreviewWidths = new ArrayList<>();
+        for (int i = 0; i < size.size(); i++) {
             Log.d(TAG, "Size: " + Integer.toString(size.get(i).width) + " * " + Integer.toString(size.get(i).height));
 
             final int currentWidth = size.get(i).width;
-            if (currentWidth <= MAX_CAMERA_PREVIEW_RESOLUTION_WIDTH) {
+            if (i == 0 || currentWidth != size.get(i-1).width )
+                availablePreviewWidths.add(Integer.toString(currentWidth));
+            if (currentWidth == preferredPreviewWidth
+                    || (preferredPreviewWidth ==  UNINITIALIZED_WIDTH && currentWidth <= MAX_INITIAL_PREVIEW_RESOLUTION_WIDTH && (result == null || currentWidth > result.width))) {
                 result = size.get(i);
-                break;
             }
         }
-
-        // just use the last one, if there are only a few supported sizes.
-        if (result == null) return size.get(size.size() - 1);
-
+        if (result == null)
+            result = size.get(size.size() - 1);
+        this.availablePreviewWidths = availablePreviewWidths.toArray(new CharSequence[availablePreviewWidths.size()]);
         Log.d(TAG, "got maximum preview size of " + Integer.toString(result.width) + "*" + Integer.toString(result.height));
         return result;
     }
@@ -1041,5 +1052,9 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
     public void pausePreviewIfReady() {
         mPauseOnReady = true;
+    }
+
+    public int getCameraPreviewWidth() {
+        return mCameraPreviewWidth;
     }
 }

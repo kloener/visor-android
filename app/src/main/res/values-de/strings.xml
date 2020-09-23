@@ -18,7 +18,12 @@
     <string name="focus_sound_title">Nach Autofokus</string>
     <string name="shutter_sound_title">Beim Screenshot</string>
 
+    <!-- Lighting Preferences -->
     <string name="max_brightness_title">Maximale Displayhelligkeit</string>
     <string name="auto_torch_title">Lampe beim Start einschalten</string>
+
+    <!-- Advanced Preferences -->
+    <string name="advanced_header">Erweitert</string>
+    <string name="preview_resolution_width">X-Auflösung der Vorschau</string>
 
 </resources>
