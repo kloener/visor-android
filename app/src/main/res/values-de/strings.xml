@@ -9,10 +9,16 @@
     <string name="text_autofocus_disabled">Autofokus deaktiviert. Antippen zum Fokussieren.</string>
     <string name="text_image_stored">Bild gespeichert unter </string>
 
-    <!-- Key names (equal in all languages) -->
-    <string name="visor_shared_preference_name">VisorAndroidSharedPreference</string>
-    <string name="key_preference_zoom_level">VisorAndroidKeyPreferenceZoomLevel</string>
-    <string name="key_preference_color_mode">VisorAndroidKeyPreferenceColorMode</string>
-    <string name="key_preference_autofocus_mode">VisorAndroidKeyPreferenceAutofocusMode</string>
-    <string name="key_preference_activity_button_mode">VisorAndroidKeyPreferenceButtonMode</string>
+    <!-- Preference Titles -->
+    <string name="title_activity_settings">Einstellungen</string>
+    <string name="notification_sounds_header">Benachrichtigungstöne</string>
+    <string name="lighting_header">Beleuchtung</string>
+
+    <!-- Notification Sound Preferences -->
+    <string name="focus_sound_title">Nach Autofokus</string>
+    <string name="shutter_sound_title">Beim Screenshot</string>
+
+    <string name="max_brightness_title">Maximale Displayhelligkeit</string>
+    <string name="auto_torch_title">Lampe beim Start einschalten</string>
+
 </resources>

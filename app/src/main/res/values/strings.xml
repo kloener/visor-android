@@ -10,9 +10,27 @@
     <string name="text_image_stored">Image stored in path </string>
 
     <!-- Key names (equal in all languages) -->
-    <string name="visor_shared_preference_name">VisorAndroidSharedPreference</string>
-    <string name="key_preference_zoom_level">VisorAndroidKeyPreferenceZoomLevel</string>
-    <string name="key_preference_color_mode">VisorAndroidKeyPreferenceColorMode</string>
-    <string name="key_preference_autofocus_mode">VisorAndroidKeyPreferenceAutofocusMode</string>
-    <string name="key_preference_activity_button_mode">VisorAndroidKeyPreferenceButtonMode</string>
+    <string name="visor_shared_preference_name" translatable="false">VisorAndroidSharedPreference</string>
+    <string name="key_preference_zoom_level" translatable="false">VisorAndroidKeyPreferenceZoomLevel</string>
+    <string name="key_preference_color_mode" translatable="false">VisorAndroidKeyPreferenceColorMode</string>
+    <string name="key_preference_autofocus_mode" translatable="false">VisorAndroidKeyPreferenceAutofocusMode</string>
+    <string name="key_preference_activity_button_mode" translatable="false">VisorAndroidKeyPreferenceButtonMode</string>
+    <string name="key_preference_autofocus_sound" translatable="false">VisorAndroidKeyPreferenceAutoFocusSound</string>
+    <string name="key_preference_shutter_sound" translatable="false">VisorAndroidKeyPreferenceShutterSound</string>
+    <string name="key_preference_max_brightness" translatable="false">VisorAndroidKeyPreferenceMaxBrightness</string>
+    <string name="key_preference_auto_torch" translatable="false">VisorAndroidKeyPreferenceAutoTorch</string>
+
+
+    <!-- Preference Titles -->
+    <string name="title_activity_settings">Settings</string>
+    <string name="lighting_header">Lighting</string>
+    <string name="notification_sounds_header">Notification sounds</string>
+
+    <!-- Notification Sound Preferences -->
+    <string name="focus_sound_title">After autofocus</string>
+    <string name="shutter_sound_title">On screenshot</string>
+
+    <!-- Lighting Preferences -->
+    <string name="max_brightness_title">Maximum display brightness</string>
+    <string name="auto_torch_title">Turn on flashlight on start</string>
 </resources>

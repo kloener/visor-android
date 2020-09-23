@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -24,6 +25,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.preference.PreferenceManager;
 
 import com.github.chrisbanes.photoview.PhotoView;
 
@@ -81,11 +83,12 @@ public class VisorActivity extends Activity {
      * stores the brightness level of the screen to restore it after the
      * app gets paused or destroyed.
      */
-    private float prevScreenBrightnewss;
+    private float prevScreenBrightnewss = -1f;
     public PhotoView mPhotoView;
 
     private int zoomSliderVisibility = View.VISIBLE;
     private View mVisorViewTouchArea;
+    private SharedPreferences mSharedPreferences;
 
     public void playClickSound(View view) {
         // TODO the user can disable this; if click-sounds are enable I hear a double click effect...
@@ -179,6 +182,14 @@ public class VisorActivity extends Activity {
         }
     }
 
+    private View.OnClickListener openSettingsClickHandler = new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            Intent intent = new Intent(getApplicationContext(), SettingsActivity.class);
+            startActivity(intent);
+        }
+    };
+
     private View.OnClickListener flashLightClickHandler = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
@@ -260,9 +271,12 @@ public class VisorActivity extends Activity {
      * resets the brightness value to the previous screen value.
      */
     protected void resetBrightnessToPreviousValue() {
+        if (prevScreenBrightnewss < 0)
+            return;
         WindowManager.LayoutParams layout = getWindow().getAttributes();
         layout.screenBrightness = prevScreenBrightnewss;
         getWindow().setAttributes(layout);
+        prevScreenBrightnewss = -1f;
     }
 
     /**
@@ -352,6 +366,7 @@ public class VisorActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        mSharedPreferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         setContentView(R.layout.activity_visor);
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED) {
@@ -400,6 +415,9 @@ public class VisorActivity extends Activity {
      *
      */
     private void setButtonListeners() {
+        ImageButton settingsButtonm = findViewById(R.id.settings_button);
+        settingsButtonm.setOnClickListener(openSettingsClickHandler);
+
         // Add a listener to the Zoom slider
         SeekBar zoomSlider =  findViewById(R.id.zoom_slider);
         zoomSlider.setOnSeekBarChangeListener(zoomSliderChangelistener);
@@ -432,7 +450,7 @@ public class VisorActivity extends Activity {
         super.onPause();
         // 2015-10-19 ChangeRequest: Some users have problems with the high brightness value.
         //                           So the user now has to activly adjust the brightness.
-        // resetBrightnessToPreviousValue();
+        resetBrightnessToPreviousValue();
         Log.d(TAG, "onPause called!");
     }
 
@@ -445,6 +463,9 @@ public class VisorActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (mSharedPreferences.getBoolean(getResources().getString(R.string.key_preference_max_brightness), false)) {
+            setBrightnessToMaximum();
+        }
 
         if (cameraPreviewState != true && mPhotoView != null) {
             cameraPreviewState = true;
