@@ -229,7 +229,7 @@ public class VisorActivity extends Activity {
 
         @Override
         public void onStopTrackingTouch(SeekBar seekBar) {
-
+            mVisorView.autoFocusCamera(); // will not be applied in continuous modes
         }
     };
     /**

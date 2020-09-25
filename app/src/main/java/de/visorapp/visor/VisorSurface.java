@@ -610,7 +610,6 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
             toggleCameraPreview();
         }
 
-        autoFocusCamera();
         if (mSharedPreferences.getBoolean(getResources().getString(R.string.key_preference_auto_torch), false)) {
             turnFlashlightOn();
         }
@@ -712,7 +711,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      * It will autofocus just a single time.
      */
     public void autoFocusCamera() {
-        if (mState != STATE_PREVIEW) return;
+        if (mState != STATE_PREVIEW || mCamera.getParameters().getFocusMode().contains("continuous")) return;
 
         try {
             mCamera.cancelAutoFocus();
@@ -790,6 +789,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         if (currentMode.equals(FOCUS_MODE_AUTO)) {
             Toast.makeText(VisorSurface.this.getContext(), R.string.text_autofocus_enabled, Toast.LENGTH_SHORT).show();
             cameraParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+            // make sure that no focusing is in progress or CONTINUOUS mode will not work
+            mCamera.cancelAutoFocus();
         } else {
             Toast.makeText(VisorSurface.this.getContext(), R.string.text_autofocus_disabled, Toast.LENGTH_SHORT).show();
             cameraParameters.setFocusMode(FOCUS_MODE_AUTO);
