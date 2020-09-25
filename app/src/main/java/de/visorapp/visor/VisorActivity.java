@@ -366,6 +366,9 @@ public class VisorActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // set proper display orientation
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+
         mSharedPreferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         setContentView(R.layout.activity_visor);
 
@@ -401,9 +404,6 @@ public class VisorActivity extends Activity {
         mVisorViewTouchArea = findViewById(R.id.camera_preview_touch_area);
         mVisorViewTouchArea.setOnClickListener(autoFocusClickHandler);/**/
         mVisorViewTouchArea.setOnLongClickListener(tapAndHoldListener);
-
-        // set proper display orientation
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
 
     }
 

@@ -3,6 +3,7 @@ package de.visorapp.visor;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -421,8 +422,20 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
-        Log.d(TAG, "called surfaceCreated");
-        enableCamera();
+        final int orientation = getResources().getConfiguration().orientation;
+        Log.d(TAG, "called surfaceCreated, display orientation: " + orientation);
+    }
+
+    @Override
+    // This method is always called at least once, after surfaceCreated.
+    public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
+        final int orientation = getResources().getConfiguration().orientation;
+        Log.d(TAG, "called surfaceChanged, display orientation: " + orientation);
+        if (orientation == ActivityInfo.SCREEN_ORIENTATION_USER || orientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
+            enableCamera();
+        } else {
+            Log.d(TAG, "delaying camera start unitil screen is rotated");
+        }
     }
 
     @Override
@@ -668,12 +681,6 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         } catch (Exception e) {
             Log.e(TAG, e.getMessage());
         }
-    }
-
-    @Override
-    public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
-        Log.d(TAG, "called surfaceChanged");
-        enableCamera();
     }
 
     public MediaActionSound getMediaActionSound() {
