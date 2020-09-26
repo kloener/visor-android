@@ -416,8 +416,14 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
      *
      * @return
      */
-    public static Camera getCameraInstance() {
-        return getCameraInstance(0);
+    public Camera getCameraInstance() {
+        return getCameraInstance(getPreferredCameraId());
+    }
+
+    public int getPreferredCameraId() {
+        int preferredCamera = Integer.parseInt(mSharedPreferences.getString(getResources().getString(R.string.key_preference_camera_id), Integer.toString(0)));
+
+        return preferredCamera ;
     }
 
     @Override

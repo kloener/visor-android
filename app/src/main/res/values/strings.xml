@@ -19,6 +19,7 @@
     <string name="key_preference_max_brightness" translatable="false">VisorAndroidKeyPreferenceMaxBrightness</string>
     <string name="key_preference_auto_torch" translatable="false">VisorAndroidKeyPreferenceAutoTorch</string>
     <string name="key_preference_preview_resolution" translatable="false">VisorAndroidKeyPreferencePreviewResolution</string>
+    <string name="key_preference_camera_id" translatable="false">VisorAndroidKeyPreferenceCameraId</string>/>
 
 
     <!-- Preference Titles -->
@@ -37,4 +38,8 @@
     <!-- Advanced Preferences -->
     <string name="advanced_header">Advanced</string>
     <string name="preview_resolution_width">Preview resolution width</string>
+    <string name="camera_id">Camera</string>
+    <string name="main_camera">Main camera</string>
+    <string name="selfie_camera">Selfie camera</string>
+    <string name="wide_or_other_camera">Wide or other</string>
 </resources>

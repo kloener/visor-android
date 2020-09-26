@@ -25,5 +25,9 @@
     <!-- Advanced Preferences -->
     <string name="advanced_header">Erweitert</string>
     <string name="preview_resolution_width">X-Auflösung der Vorschau</string>
+    <string name="camera_id">Kamera</string>
+    <string name="main_camera">Hauptkamera</string>
+    <string name="selfie_camera">Selfie-Kamera</string>
+    <string name="wide_or_other_camera">Weitwinkel- oder andere</string>
 
 </resources>

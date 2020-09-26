@@ -1,5 +1,9 @@
 package de.visorapp.visor
 
+import android.hardware.Camera
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.os.Build
 import android.os.Bundle
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
@@ -34,6 +38,41 @@ class SettingsActivity : AppCompatActivity() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.root_preferences, rootKey)
             initPreviewResolutionWidth()
+            initCameraChooser()
+        }
+
+        private fun initCameraChooser() {
+            val visorSurface = VisorSurface.getInstance()
+            val numberOfCameras = Camera.getNumberOfCameras()
+            var entryValues: MutableList<CharSequence> = ArrayList()
+            var entries: MutableList<CharSequence> = ArrayList()
+            val manager: CameraManager
+            var haveMain = false
+            var haveSelfie = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                manager = context?.getSystemService(CAMERA_SERVICE) as CameraManager
+                manager.cameraIdList.forEach {
+                    val cameraCharacteristics = manager.getCameraCharacteristics(it)
+                    entryValues.add(it)
+                    if (!haveMain && cameraCharacteristics.get(CameraCharacteristics.LENS_FACING) == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+                        entries.add(resources.getString(R.string.main_camera))
+                        haveMain = true
+                    } else if (!haveSelfie && cameraCharacteristics.get(CameraCharacteristics.LENS_FACING) == Camera.CameraInfo.CAMERA_FACING_BACK) {
+                        entries.add(resources.getString(R.string.selfie_camera))
+                        haveSelfie = true
+                    } else
+                        entries.add(resources.getString(R.string.wide_or_other_camera))
+                }
+            } else {
+                entryValues = MutableList(numberOfCameras) { i -> i.toString() }
+                entries = entryValues
+            }
+            val cameraIdPreference = findPreference<DropDownPreference>(resources.getString(R.string.key_preference_camera_id))
+            if (cameraIdPreference != null) {
+                cameraIdPreference.entries = entries.toTypedArray()
+                cameraIdPreference.entryValues = entryValues.toTypedArray()
+                cameraIdPreference.setValueIndex(visorSurface.preferredCameraId)
+            }
         }
 
         private fun initPreviewResolutionWidth() {

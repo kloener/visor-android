@@ -35,6 +35,15 @@
             app:key="@string/key_preference_preview_resolution"
             app:title="@string/preview_resolution_width"
             app:useSimpleSummaryProvider="true" />
+
+        <DropDownPreference
+            app:defaultValue="0"
+            app:key="@string/key_preference_camera_id"
+            app:title="@string/camera_id"
+            app:entries="@array/camera_ids"
+            app:entryValues="@array/camera_ids"
+            app:useSimpleSummaryProvider="true" />
+
     </PreferenceCategory>
 
 </PreferenceScreen>
