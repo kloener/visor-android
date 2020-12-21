@@ -509,6 +509,7 @@ public class VisorActivity extends Activity {
         Intent intent = new Intent(Intent.ACTION_VIEW)
                 .setDataAndType(uri, "image/*")
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.putExtra(Intent.EXTRA_STREAM, uri);
         startActivity(intent);
     }
 }
