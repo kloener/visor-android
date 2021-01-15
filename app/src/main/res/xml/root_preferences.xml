@@ -1,0 +1,49 @@
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="@string/lighting_header"
+        app:icon="@drawable/ic_baseline_flare_24">
+
+        <SwitchPreferenceCompat
+            app:key="@string/key_preference_max_brightness"
+            app:title="@string/max_brightness_title" />
+
+        <SwitchPreferenceCompat
+            app:key="@string/key_preference_auto_torch"
+            app:title="@string/auto_torch_title" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/notification_sounds_header"
+        app:icon="@drawable/ic_baseline_notifications_none_24">
+
+        <SwitchPreferenceCompat
+            app:key="@string/key_preference_autofocus_sound"
+            app:title="@string/focus_sound_title" />
+
+        <SwitchPreferenceCompat
+            app:key="@string/key_preference_shutter_sound"
+            app:title="@string/shutter_sound_title" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/advanced_header"
+        app:icon="@drawable/ic_baseline_settings_applications_24">
+        <DropDownPreference
+            app:defaultValue="3"
+            app:entries="@array/preview_resolution_entries"
+            app:entryValues="@array/preview_resolution_entry_values"
+            app:key="@string/key_preference_preview_resolution"
+            app:title="@string/preview_resolution_width"
+            app:useSimpleSummaryProvider="true" />
+
+        <DropDownPreference
+            app:defaultValue="0"
+            app:key="@string/key_preference_camera_id"
+            app:title="@string/camera_id"
+            app:entries="@array/camera_ids"
+            app:entryValues="@array/camera_ids"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

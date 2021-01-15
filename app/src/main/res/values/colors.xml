@@ -3,6 +3,7 @@
     <color name="black_overlay">#66000000</color>
     <color name="button_background">#000000FF</color>
     <color name="button_color_yellow">#fece0e</color>
+    <color name="slider_color_orange">#fe9e0e</color>
     <color name="button_color_red">#ff1300</color>
     <color name="button_color_blue">#0092cc</color>
 

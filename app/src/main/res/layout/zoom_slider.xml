@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/zoom_slider_frame"
+    android:layout_width="@dimen/button_size_primary"
+    android:layout_height="200dp"
+    android:layout_alignParentEnd="true"
+    android:layout_alignParentRight="true"
+    android:layout_centerVertical="true"
+    android:layout_marginRight="@dimen/button_margin_secondary"
+    android:elevation="8dp"
+    android:orientation="vertical"
+    android:layout_marginEnd="@dimen/button_margin_secondary"
+    tools:showIn="@layout/activity_visor">
+
+    <SeekBar
+        android:id="@+id/zoom_slider"
+        android:layout_width="95dp"
+        android:layout_height="32dp"
+        android:layout_gravity="center"
+        android:max="100"
+        android:rotation="270"
+        android:scaleX="1.8"
+        android:scaleY="1.8" />
+</FrameLayout>

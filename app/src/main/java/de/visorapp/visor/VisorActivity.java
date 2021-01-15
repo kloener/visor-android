@@ -1,34 +1,40 @@
 package de.visorapp.visor;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.util.Log;
 import android.view.View;
-import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
-import android.widget.ImageView;
+import android.widget.SeekBar;
 import android.widget.Toast;
 
-import java.io.File;
-import java.io.FileOutputStream;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.preference.PreferenceManager;
+
+import com.github.chrisbanes.photoview.PhotoView;
+
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
 import de.visorapp.visor.filters.ColorFilter;
-import uk.co.senab.photoview.PhotoView;
 
 /**
  */
@@ -51,6 +57,12 @@ public class VisorActivity extends Activity {
      */
     private static final boolean TOGGLE_ON_CLICK = false;
 
+    // Defining Permission codes.
+    // We can give any value
+    // but unique for each permission.
+    private static final int CAMERA_PERMISSION_CODE = 100;
+    private static final int STORAGE_PERMISSION_CODE = 101;
+
     /**
      * Tag name for the Log message.
      */
@@ -71,8 +83,12 @@ public class VisorActivity extends Activity {
      * stores the brightness level of the screen to restore it after the
      * app gets paused or destroyed.
      */
-    private float prevScreenBrightnewss;
-    public uk.co.senab.photoview.PhotoView mPhotoView;
+    private float prevScreenBrightnewss = -1f;
+    public PhotoView mPhotoView;
+
+    private int zoomSliderVisibility = View.VISIBLE;
+    private View mVisorViewTouchArea;
+    private SharedPreferences mSharedPreferences;
 
     public void playClickSound(View view) {
         // TODO the user can disable this; if click-sounds are enable I hear a double click effect...
@@ -94,6 +110,17 @@ public class VisorActivity extends Activity {
             playClickSound(v);
 
             mVisorView.toggleColorMode();
+        }
+    };
+
+    private View.OnLongClickListener colorModeLongClickHandler = new View.OnLongClickListener() {
+        @Override
+        public boolean onLongClick(View v) {
+            v.startAnimation(animScale);
+            playClickSound(v);
+
+            mVisorView.setColorMode(0);
+            return true;
         }
     };
 
@@ -120,7 +147,10 @@ public class VisorActivity extends Activity {
 
     private void cameraPreviewIsPaused(ImageButton playOrPauseButton) {
         playOrPauseButton.setImageResource(R.drawable.ic_play);
-        mZoomButton.setImageResource(R.drawable.ic_camera);
+        mVisorViewTouchArea.setVisibility(View.INVISIBLE);
+        zoomSliderVisibility = mZoomSlider.getVisibility();
+        mZoomSlider.setVisibility(View.INVISIBLE);
+        mPhotoButton.setVisibility(View.VISIBLE);
         mFlashButton.setAlpha(64);
         mFlashButton.getBackground().setAlpha(64);
 
@@ -136,7 +166,9 @@ public class VisorActivity extends Activity {
 
     private void cameraPreviewIsActive(ImageButton playOrPauseButton) {
         playOrPauseButton.setImageResource(R.drawable.ic_pause);
-        mZoomButton.setImageResource(R.drawable.ic_zoom);
+        mVisorViewTouchArea.setVisibility(View.VISIBLE);
+        mZoomSlider.setVisibility(zoomSliderVisibility);
+        mPhotoButton.setVisibility(View.INVISIBLE);
         mFlashButton.setAlpha(255);
         mFlashButton.getBackground().setAlpha(255);
 
@@ -144,9 +176,19 @@ public class VisorActivity extends Activity {
         mVisorView.setAlpha(1.0f);
         // mVisorView.setVisibility(View.VISIBLE); // the change of visiblity would cause a surfaceDestroy!
 
-        mPhotoView.setVisibility(View.GONE);
-        mPhotoView.setAlpha(0);
+        if (mPhotoView != null) {
+            mPhotoView.setVisibility(View.GONE);
+            mPhotoView.setAlpha(0);
+        }
     }
+
+    private View.OnClickListener openSettingsClickHandler = new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            Intent intent = new Intent(getApplicationContext(), SettingsActivity.class);
+            startActivity(intent);
+        }
+    };
 
     private View.OnClickListener flashLightClickHandler = new View.OnClickListener() {
         @Override
@@ -157,30 +199,11 @@ public class VisorActivity extends Activity {
             mVisorView.nextFlashlightMode(getApplicationContext());
         }
     };
-    private View.OnClickListener zoomClickHandler = new View.OnClickListener() {
+    private View.OnClickListener screenshotClickHandler = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
             v.startAnimation(animScale);
-            playClickSound(v);
-
-            if (cameraPreviewState) {
-                mVisorView.nextZoomLevel();
-                return;
-            }
-
             takeScreenshot();
-        }
-    };
-    private View.OnLongClickListener zoomOutClickHandler = new View.OnLongClickListener() {
-        @Override
-        public boolean onLongClick(View v) {
-            v.startAnimation(animScaleLongPress);
-
-            if (cameraPreviewState) {
-                mVisorView.prevZoomLevel();
-                return true;
-            }
-            return true;
         }
     };
     private View.OnLongClickListener tapAndHoldListener = new View.OnLongClickListener() {
@@ -191,10 +214,29 @@ public class VisorActivity extends Activity {
         }
     };
 
+    private SeekBar.OnSeekBarChangeListener zoomSliderChangelistener = new SeekBar.OnSeekBarChangeListener() {
+        @Override
+        public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+            if (cameraPreviewState) {
+                mVisorView.setZoomLevelPercent(progress);
+            }
+        }
+
+        @Override
+        public void onStartTrackingTouch(SeekBar seekBar) {
+
+        }
+
+        @Override
+        public void onStopTrackingTouch(SeekBar seekBar) {
+            mVisorView.autoFocusCamera(); // will not be applied in continuous modes
+        }
+    };
     /**
      * Store the reference to swap the icon on it if we pause the preview.
      */
-    private ImageButton mZoomButton;
+    private SeekBar mZoomSlider;
+    private ImageButton mPhotoButton;
     private ImageButton mPauseButton;
     private ImageButton mFlashButton;
     private Animation animScale;
@@ -229,9 +271,12 @@ public class VisorActivity extends Activity {
      * resets the brightness value to the previous screen value.
      */
     protected void resetBrightnessToPreviousValue() {
+        if (prevScreenBrightnewss < 0)
+            return;
         WindowManager.LayoutParams layout = getWindow().getAttributes();
         layout.screenBrightness = prevScreenBrightnewss;
         getWindow().setAttributes(layout);
+        prevScreenBrightnewss = -1f;
     }
 
     /**
@@ -276,17 +321,67 @@ public class VisorActivity extends Activity {
         }
     }
 
+    // This function is called when the user accepts or decline the permission.
+    // Request Code is used to check which permission called this function.
+    // This request code is provided when the user is prompt for permission.
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super
+                .onRequestPermissionsResult(requestCode,
+                        permissions,
+                        grantResults);
+
+        if (requestCode == CAMERA_PERMISSION_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                restartActvitiy();
+            } else {
+                Toast.makeText(this,
+                        "Camera Permission Denied",
+                        Toast.LENGTH_SHORT)
+                        .show();
+            }
+        } else if (requestCode == STORAGE_PERMISSION_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                takeScreenshot();
+            } else {
+                Toast.makeText(this,
+                        "Storage Permission Denied",
+                        Toast.LENGTH_SHORT)
+                        .show();
+            }
+        }
+    }
+
+    private void restartActvitiy() {
+        Intent intent = new Intent(getApplicationContext(), this.getClass());
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        Runtime.getRuntime().exit(0);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // set proper display orientation
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+
+        mSharedPreferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         setContentView(R.layout.activity_visor);
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_CODE);
+            return;
+        }
 
         animScale = AnimationUtils.loadAnimation(this, R.anim.scale);
         animScaleLongPress = AnimationUtils.loadAnimation(this, R.anim.longpress);
 
         mVisorView = new VisorSurface(this);
-        mPhotoView = new uk.co.senab.photoview.PhotoView(this);
+        mPhotoView = new PhotoView(this);
 
         List<ColorFilter> filterList = new ArrayList<ColorFilter>();
         filterList.add(VisorSurface.NO_FILTER);
@@ -305,12 +400,11 @@ public class VisorActivity extends Activity {
 
         setButtonListeners();
 
-        // Add a listener to the Preview button
-        mVisorView.setOnClickListener(autoFocusClickHandler);/**/
-        mVisorView.setOnLongClickListener(tapAndHoldListener);
+        // Add listeners to the Preview area (left of the buttons to avoid accidental triggering)
+        mVisorViewTouchArea = findViewById(R.id.camera_preview_touch_area);
+        mVisorViewTouchArea.setOnClickListener(autoFocusClickHandler);/**/
+        mVisorViewTouchArea.setOnLongClickListener(tapAndHoldListener);
 
-        // set proper display orientation
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
     }
 
     private FrameLayout getCameraPreviewFrame() {
@@ -321,26 +415,32 @@ public class VisorActivity extends Activity {
      *
      */
     private void setButtonListeners() {
-        // Add a listener to the Zoom button
-        ImageButton zoomButton = (ImageButton) findViewById(R.id.button_zoom);
-        zoomButton.setOnClickListener(zoomClickHandler);
-        zoomButton.setOnLongClickListener(zoomOutClickHandler);
+        ImageButton settingsButtonm = findViewById(R.id.settings_button);
+        settingsButtonm.setOnClickListener(openSettingsClickHandler);
+
+        // Add a listener to the Zoom slider
+        SeekBar zoomSlider =  findViewById(R.id.zoom_slider);
+        zoomSlider.setOnSeekBarChangeListener(zoomSliderChangelistener);
+
+        mPhotoButton = findViewById(R.id.button_photo);
+        mPhotoButton.setOnClickListener(screenshotClickHandler);
 
         // Add a listener to the Flash button
         ImageButton flashButton = (ImageButton) findViewById(R.id.button_flash);
         flashButton.setOnClickListener(flashLightClickHandler);
 
-        // Add a listener to the Flash button
+        // Add a listener to the Color Filter button
         ImageButton colorButton = (ImageButton) findViewById(R.id.button_color);
         colorButton.setOnClickListener(colorModeClickHandler);
+        colorButton.setOnLongClickListener(colorModeLongClickHandler);
 
         ImageButton pauseButton = (ImageButton) findViewById(R.id.button_pause);
         pauseButton.setOnClickListener(pauseClickHandler);
 
-        mVisorView.setZoomButton(zoomButton);
+        mVisorView.setZoomSlider(zoomSlider);
         mVisorView.setFlashButton(flashButton);
 
-        mZoomButton = zoomButton;
+        mZoomSlider = zoomSlider;
         mPauseButton = pauseButton;
         mFlashButton = flashButton;
     }
@@ -350,7 +450,7 @@ public class VisorActivity extends Activity {
         super.onPause();
         // 2015-10-19 ChangeRequest: Some users have problems with the high brightness value.
         //                           So the user now has to activly adjust the brightness.
-        // resetBrightnessToPreviousValue();
+        resetBrightnessToPreviousValue();
         Log.d(TAG, "onPause called!");
     }
 
@@ -363,8 +463,11 @@ public class VisorActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (mSharedPreferences.getBoolean(getResources().getString(R.string.key_preference_max_brightness), false)) {
+            setBrightnessToMaximum();
+        }
 
-        if (cameraPreviewState != true) {
+        if (cameraPreviewState != true && mPhotoView != null) {
             cameraPreviewState = true;
             cameraPreviewIsActive(mPauseButton);
         }
@@ -376,33 +479,23 @@ public class VisorActivity extends Activity {
      * @source https://stackoverflow.com/questions/2661536/how-to-programmatically-take-a-screenshot-in-android#5651242
      */
     private void takeScreenshot() {
+        if (Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT < 29 &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_DENIED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION_CODE);
+            return;
+        }
         Date now = new Date();
         android.text.format.DateFormat.format("yyyy-MM-dd_hh:mm:ss", now);
-
         try {
-            // image naming and path  to include sd card  appending name you choose for file
-            String mPath = Environment.getExternalStorageDirectory().toString() + "/Pictures/visor-os-android.app_" + now + ".jpg";
-
+            String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", getResources().getConfiguration().locale).format(new Date());
+            String imageFileName = "JPEG_" + timeStamp + ".jpg";
             Bitmap bitmap = mVisorView.getBitmap();
-            File imageFile = new File(mPath);
-
             mVisorView.playActionSoundShutter();
-
-            FileOutputStream outputStream = new FileOutputStream(imageFile);
-            final int quality = VisorSurface.JPEG_QUALITY;
-            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream);
-            outputStream.flush();
-            outputStream.close();
-
-            int duration = Toast.LENGTH_SHORT;
-            Toast toasty = Toast.makeText(this, R.string.text_image_stored + mPath, duration);
-            toasty.show();
-
             mVisorView.mState = VisorSurface.STATE_CLOSED;
-            cameraPreviewIsActive(mZoomButton);
-
-            openScreenshot(imageFile);
-
+            cameraPreviewIsActive(mPauseButton);
+            Uri uri = Util.saveImageOnAllAPIs(bitmap, this, "", imageFileName, VisorSurface.JPEG_QUALITY);
+            if (uri != null)
+                openScreenshot(uri);
         } catch (Throwable e) {
             // Several error may come out with file handling or OOM
             e.printStackTrace();
@@ -412,11 +505,11 @@ public class VisorActivity extends Activity {
     /**
      * @source https://stackoverflow.com/questions/2661536/how-to-programmatically-take-a-screenshot-in-android#5651242
      */
-    private void openScreenshot(File imageFile) {
-        Intent intent = new Intent();
-        intent.setAction(Intent.ACTION_VIEW);
-        Uri uri = Uri.fromFile(imageFile);
-        intent.setDataAndType(uri, "image/*");
+    private void openScreenshot(Uri uri) {
+        Intent intent = new Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, "image/*")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.putExtra(Intent.EXTRA_STREAM, uri);
         startActivity(intent);
     }
 }

@@ -48,6 +48,7 @@ public class BitmapCreateThread implements Runnable {
     private byte[] yuvDataArray;
     private boolean useRgb;
     private int[] rgbArray;
+    private boolean mirror;
 
     private Bitmap renderedBitmap;
 
@@ -58,7 +59,7 @@ public class BitmapCreateThread implements Runnable {
      * @param renderer
      * @return
      */
-    public static BitmapCreateThread getInstance(int[] rgb, byte[] yuvDataArray, BitmapRenderer renderer, int previewWidth, int previewHeight, int targetWidth, int targetHeight, int jpegQuality, boolean useRgb) {
+    public static BitmapCreateThread getInstance(int[] rgb, byte[] yuvDataArray, BitmapRenderer renderer, int previewWidth, int previewHeight, int targetWidth, int targetHeight, int jpegQuality, boolean useRgb, boolean mirror) {
 
         if (instanceCounter >= MAX_INSTANCES) {
             Log.d("BitmapCreateThread", "Thread Creation blocked, because we reached our MAX_INSTANCES.");
@@ -82,6 +83,7 @@ public class BitmapCreateThread implements Runnable {
         instance.setRenderer(renderer);
         instance.setUseRgb(useRgb);
         instance.setRgbArray(rgb);
+        instance.setMirror(mirror);
 
         return instance;
     }
@@ -106,6 +108,10 @@ public class BitmapCreateThread implements Runnable {
         this.yuvDataArray = yuvDataArray;
     }
 
+    public void setMirror(boolean mirror) {
+        this.mirror = mirror;
+    }
+
     /**
      * the actual hard work.
      * @param yuvData
@@ -126,6 +132,9 @@ public class BitmapCreateThread implements Runnable {
             renderedBitmap = Bitmap.createBitmap(previewWidth, previewHeight, android.graphics.Bitmap.Config.ARGB_8888);
         }
         renderedBitmap.setPixels(rgbArray, 0, previewWidth, 0, 0, previewWidth, previewHeight);
+        if (mirror) {
+            renderedBitmap = flipBitmapHorizontally(renderedBitmap);
+        }
 
         // scaling (costs a lot of memory)
         // renderedBitmap = Bitmap.createScaledBitmap(renderedBitmap, targetWidth, targetHeight, true);
@@ -157,6 +166,12 @@ public class BitmapCreateThread implements Runnable {
         canvas.drawBitmap(bitmap, 0, 0, new Paint(Paint.FILTER_BITMAP_FLAG));
 
         return scaledBitmap;
+    }
+
+    public static Bitmap flipBitmapHorizontally(Bitmap bitmap) {
+        Matrix m = new Matrix();
+        m.preScale(-1, 1);
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), m, false);
     }
 
     private void decodeYuvWithNativeYuvToGreyScale(int[] rgb, byte[] yuvData, int width, int height) {
