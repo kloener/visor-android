@@ -220,6 +220,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
     private int mCameraPreviewHeight;
 
     /**
+     * is the current camera a selfie camera, i.e. is it mirrored?
+     */
+    private boolean mCameraIsFrontFacing;
+
+    /**
      * the paint object which has the colorFilter assigned. We will use it
      * to apply the different color modes to the rendered preview bitmap.
      */
@@ -580,7 +585,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         parameters.setRecordingHint(true);
 
         //mCamera.setDisplayOrientation(0);
-        setCameraDisplayOrientation((Activity) getContext());
+        setCameraDisplayAndFaceOrientation((Activity) getContext());
 
         mCamera.setParameters(parameters);
 
@@ -636,9 +641,11 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         Log.d(TAG, "Thread done. Camera successfully started");
     }
 
-    public void setCameraDisplayOrientation(Activity activity) {
+    public void setCameraDisplayAndFaceOrientation(Activity activity) {
         Camera.CameraInfo info = new Camera.CameraInfo();
         Camera.getCameraInfo(mCameraId, info);
+        mCameraIsFrontFacing = info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT;
+
         int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
         int degrees = 0;
         switch (rotation) {
@@ -657,7 +664,7 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
         }
 
         int result;
-        if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+        if (mCameraIsFrontFacing) {
             result = (info.orientation + degrees) % 360;
             result = (360 - result) % 360;  // compensate the mirror
         } else {  // back-facing
@@ -939,7 +946,8 @@ public class VisorSurface extends SurfaceView implements SurfaceHolder.Callback,
                 width,
                 height,
                 JPEG_QUALITY,
-                rgb
+                rgb,
+                mCameraIsFrontFacing
         );
         if (bitmapCreateThread == null) return;
         new Thread(bitmapCreateThread).start();
