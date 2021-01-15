@@ -37,6 +37,15 @@ This is the offical android version of the visor app - the low vision magnifier.
 
 ## Changelog
 
+Version 1.6.0 (2020-01-15)
+- big slider for adjusting the zoom level
+- added settings for preview resolution, notification sounds, camera selection, max brightness, flashlight on startup
+- fixed continuous auto focus
+- fixed distorted preview after resume from suspend on some devices
+- added reset contrast/color mode on long press
+- upgraded to AndroidX, updated gradle and all libraries
+- tested (including snapshot saving) on API 16, 21, 25, 29, 30
+
 Version 1.5.0 (2017-07-05)
 - using a native module to calculate yuv2rgb (greyscaled) (increases performance a bit, I guess)
 - using matrix-scaling instead of re-creating a bitmap with new size (drastically increases performance)

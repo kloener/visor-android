@@ -27,8 +27,8 @@ android {
         applicationId "de.visorapp.visoropensource"
         minSdkVersion 14
         targetSdkVersion 30
-        versionCode 2
-        versionName "1.5"
+        versionCode 3
+        versionName "1.6"
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
