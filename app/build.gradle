@@ -20,13 +20,11 @@ allprojects {
 }
 
 android {
-    compileSdkVersion 30
-    buildToolsVersion buildToolsVersion
-
     defaultConfig {
+        compileSdk 34
         applicationId "de.visorapp.visoropensource"
         minSdkVersion 14
-        targetSdkVersion 30
+        targetSdkVersion 34
         versionCode 3
         versionName "1.6"
     }
@@ -53,6 +51,7 @@ android {
             zipAlignEnabled true
         }
     }
+    namespace 'de.visorapp.visor'
 }
 
 dependencies {
